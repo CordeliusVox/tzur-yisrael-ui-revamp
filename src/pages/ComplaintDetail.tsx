@@ -2,8 +2,9 @@ import { useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
+import { Textarea } from "@/components/ui/textarea";
+import { Label } from "@/components/ui/label";
 import { toast } from "@/hooks/use-toast";
 import { 
   ArrowRight, 
@@ -11,10 +12,9 @@ import {
   Calendar, 
   User, 
   FileText, 
-  CheckCircle, 
-  Clock,
   AlertTriangle,
-  MessageSquare
+  Send,
+  Trash2
 } from "lucide-react";
 
 // Mock data - in real app this would come from API
@@ -80,7 +80,9 @@ const mockComplaintDetails = {
 const ComplaintDetail = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const [isClosing, setIsClosing] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
+  const [response, setResponse] = useState("");
+  const [isSending, setIsSending] = useState(false);
   
   const complaint = id ? mockComplaintDetails[id as keyof typeof mockComplaintDetails] : null;
 
@@ -103,40 +105,41 @@ const ComplaintDetail = () => {
     );
   }
 
-  const handleCloseComplaint = async () => {
-    setIsClosing(true);
+  const handleDeleteComplaint = async () => {
+    setIsDeleting(true);
     
-    // Simulate API call
+    // Simulate API call to delete complaint
     setTimeout(() => {
       toast({
-        title: "פנייה נסגרה בהצלחה",
-        description: "הפנייה סומנה כסגורה במערכת",
+        title: "פנייה נמחקה בהצלחה",
+        description: "הפנייה הוסרה מהמערכת",
       });
-      setIsClosing(false);
+      setIsDeleting(false);
       navigate("/complaints");
     }, 1000);
   };
 
-  const getStatusBadge = (status: string) => {
-    if (status === "פתוח") {
-      return <Badge className="status-open flex items-center gap-1">
-        <Clock className="w-3 h-3" />
-        פתוח
-      </Badge>;
+  const handleSendResponse = async () => {
+    if (!response.trim()) {
+      toast({
+        title: "שגיאה",
+        description: "אנא כתבו תגובה לפני השליחה",
+        variant: "destructive",
+      });
+      return;
     }
-    return <Badge className="status-closed flex items-center gap-1">
-      <CheckCircle className="w-3 h-3" />
-      סגור
-    </Badge>;
-  };
 
-  const getPriorityColor = (priority: string) => {
-    switch (priority) {
-      case "דחוף": return "text-red-600 bg-red-50 border-red-200";
-      case "גבוה": return "text-orange-600 bg-orange-50 border-orange-200";
-      case "בינוני": return "text-yellow-600 bg-yellow-50 border-yellow-200";
-      default: return "text-muted-foreground bg-muted border-border";
-    }
+    setIsSending(true);
+    
+    // Simulate API call to send email response
+    setTimeout(() => {
+      toast({
+        title: "התגובה נשלחה בהצלחה",
+        description: `התגובה נשלחה לכתובת ${complaint.submitterEmail}`,
+      });
+      setResponse("");
+      setIsSending(false);
+    }, 2000);
   };
 
   return (
@@ -189,9 +192,8 @@ const ComplaintDetail = () => {
                         {complaint.submitter}
                       </div>
                     </div>
-                  </div>
-                  {getStatusBadge(complaint.status)}
-                </div>
+                   </div>
+                 </div>
               </CardHeader>
             </Card>
 
@@ -210,41 +212,42 @@ const ComplaintDetail = () => {
               </CardContent>
             </Card>
 
-            {/* Updates Timeline */}
+            {/* Response Form */}
             <Card className="card-elegant">
               <CardHeader>
                 <CardTitle className="hebrew-subtitle flex items-center gap-2">
-                  <MessageSquare className="w-5 h-5" />
-                  עדכונים וטיפול
+                  <Send className="w-5 h-5" />
+                  תגובה לפנייה
                 </CardTitle>
                 <CardDescription>
-                  היסטוריית הטיפול בפנייה
+                  שלחו תגובה למגיש הפנייה באימייל
                 </CardDescription>
               </CardHeader>
-              <CardContent>
-                <div className="space-y-4">
-                  {complaint.updates.map((update, index) => (
-                    <div key={index} className="relative">
-                      {index !== complaint.updates.length - 1 && (
-                        <div className="absolute right-2 top-8 bottom-0 w-0.5 bg-border"></div>
-                      )}
-                      <div className="flex gap-4">
-                        <div className="w-4 h-4 bg-primary rounded-full mt-1 relative z-10"></div>
-                        <div className="flex-1 pb-4">
-                          <div className="flex items-center gap-2 mb-1">
-                            <span className="font-medium text-sm">{update.author}</span>
-                            <span className="text-xs text-muted-foreground">
-                              {update.date} • {update.time}
-                            </span>
-                          </div>
-                          <p className="text-sm hebrew-body text-foreground">
-                            {update.message}
-                          </p>
-                        </div>
-                      </div>
-                    </div>
-                  ))}
+              <CardContent className="space-y-4">
+                <div>
+                  <Label htmlFor="response" className="hebrew-body">
+                    תוכן התגובה
+                  </Label>
+                  <Textarea
+                    id="response"
+                    placeholder="כתבו כאן את התגובה שלכם לפנייה..."
+                    value={response}
+                    onChange={(e) => setResponse(e.target.value)}
+                    className="mt-2 min-h-32 resize-none hebrew-body"
+                    dir="rtl"
+                  />
                 </div>
+                <Button
+                  onClick={handleSendResponse}
+                  disabled={isSending || !response.trim()}
+                  className="w-full bg-gradient-to-l from-primary to-primary-glow hover:shadow-lg transition-all rounded-xl"
+                >
+                  <Send className="w-4 h-4 ml-2" />
+                  {isSending ? "שולח תגובה..." : "שלח תגובה"}
+                </Button>
+                <p className="text-xs text-muted-foreground text-center">
+                  התגובה תישלח לכתובת: {complaint.submitterEmail}
+                </p>
               </CardContent>
             </Card>
           </div>
@@ -262,16 +265,7 @@ const ComplaintDetail = () => {
                   <p className="hebrew-body font-medium">{complaint.category}</p>
                 </div>
 
-                <Separator />
-
-                <div>
-                  <label className="text-sm font-medium text-muted-foreground">עדיפות</label>
-                  <div className={`inline-block px-3 py-1 rounded-full text-sm font-medium border ${getPriorityColor(complaint.priority)}`}>
-                    {complaint.priority}
-                  </div>
-                </div>
-
-                <Separator />
+                 <Separator />
 
                 <div>
                   <label className="text-sm font-medium text-muted-foreground">מגיש הפנייה</label>
@@ -289,26 +283,25 @@ const ComplaintDetail = () => {
             </Card>
 
             {/* Actions */}
-            {complaint.status === "פתוח" && (
-              <Card className="card-elegant">
-                <CardHeader>
-                  <CardTitle className="hebrew-subtitle">פעולות</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <Button 
-                    onClick={handleCloseComplaint}
-                    disabled={isClosing}
-                    className="w-full bg-gradient-to-l from-success to-success/90 hover:shadow-lg transition-all rounded-xl"
-                  >
-                    <CheckCircle className="w-4 h-4 ml-2" />
-                    {isClosing ? "סוגר פנייה..." : "סמן כסגור"}
-                  </Button>
-                  <p className="text-xs text-muted-foreground mt-2 text-center">
-                    פעולה זו תסמן את הפנייה כטופלה
-                  </p>
-                </CardContent>
-              </Card>
-            )}
+            <Card className="card-elegant">
+              <CardHeader>
+                <CardTitle className="hebrew-subtitle">פעולות</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <Button 
+                  onClick={handleDeleteComplaint}
+                  disabled={isDeleting}
+                  variant="destructive"
+                  className="w-full hover:shadow-lg transition-all rounded-xl"
+                >
+                  <Trash2 className="w-4 h-4 ml-2" />
+                  {isDeleting ? "מוחק פנייה..." : "מחק פנייה"}
+                </Button>
+                <p className="text-xs text-muted-foreground mt-2 text-center">
+                  פעולה זו תמחק את הפנייה לצמיתות
+                </p>
+              </CardContent>
+            </Card>
           </div>
         </div>
       </main>
