@@ -5,7 +5,7 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Search, Filter, GraduationCap, LogOut, Eye, Calendar, User, FileText } from "lucide-react";
+import { Search, Filter, GraduationCap, LogOut, Eye, Calendar, User, FileText, Settings as SettingsIcon } from "lucide-react";
 
 // Mock data for complaints
 const mockComplaints = [
@@ -104,14 +104,24 @@ const ComplaintsList = () => {
               </div>
             </div>
             
-            <Button 
-              variant="outline" 
-              onClick={handleLogout}
-              className="flex items-center gap-2 rounded-xl hover:bg-destructive hover:text-destructive-foreground"
-            >
-              <LogOut className="w-4 h-4" />
-              יציאה
-            </Button>
+            <div className="flex items-center gap-2">
+              <Button 
+                variant="outline" 
+                onClick={() => navigate('/settings')}
+                className="flex items-center gap-2 rounded-xl"
+              >
+                <SettingsIcon className="w-4 h-4" />
+                הגדרות
+              </Button>
+              <Button 
+                variant="outline" 
+                onClick={handleLogout}
+                className="flex items-center gap-2 rounded-xl hover:bg-destructive hover:text-destructive-foreground"
+              >
+                <LogOut className="w-4 h-4" />
+                יציאה
+              </Button>
+            </div>
           </div>
         </div>
       </header>
