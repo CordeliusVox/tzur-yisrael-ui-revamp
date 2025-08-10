@@ -5,11 +5,12 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { toast } from "@/hooks/use-toast";
-import { GraduationCap, Mail, Lock } from "lucide-react";
+import { GraduationCap, Mail, Lock, User } from "lucide-react";
 
 const Login = () => {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [username, setUsername] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const navigate = useNavigate();
 
@@ -19,16 +20,17 @@ const Login = () => {
 
     // Simulate authentication
     setTimeout(() => {
-      if (email && password) {
+      if (email && password && username) {
+        localStorage.setItem("username", username);
         toast({
           title: "התחברות בוצעה בהצלחה",
-          description: "ברוכים הבאים למערכת ניהול פניות",
+          description: `ברוך/ה הבא/ה, ${username}`,
         });
         navigate("/complaints");
       } else {
         toast({
           title: "שגיאה בהתחברות",
-          description: "אנא מלאו את כל השדות",
+          description: "אנא מלאו את כל השדות (כולל שם משתמש)",
           variant: "destructive",
         });
       }
@@ -70,6 +72,22 @@ const Login = () => {
                     placeholder="הזינו את כתובת האימייל"
                     className="pl-10 h-12 rounded-xl border-border focus:border-primary transition-colors"
                     dir="ltr"
+                  />
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="username" className="hebrew-body font-medium">
+                  שם משתמש במערכת
+                </Label>
+                <div className="relative">
+                  <User className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground w-4 h-4" />
+                  <Input
+                    id="username"
+                    value={username}
+                    onChange={(e) => setUsername(e.target.value)}
+                    placeholder="הזינו שם משתמש שיופיע בשיוך ועדכונים"
+                    className="pl-10 h-12 rounded-xl border-border focus:border-primary transition-colors"
                   />
                 </div>
               </div>

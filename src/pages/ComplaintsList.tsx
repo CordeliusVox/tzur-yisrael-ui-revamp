@@ -1,33 +1,78 @@
-import { useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Search, Filter, GraduationCap, LogOut, Eye, Calendar, User, FileText, Settings as SettingsIcon } from "lucide-react";
+import { toast } from "sonner";
+import { 
+  Search, 
+  Filter, 
+  GraduationCap, 
+  LogOut, 
+  Eye, 
+  Calendar, 
+  User, 
+  FileText, 
+  Settings as SettingsIcon,
+  CheckCircle2,
+  Clock,
+  UserPlus
+} from "lucide-react";
 
-// Mock data for complaints
-const mockComplaints = [
+// Types
+type Status = "לא שויך" | "פתוח" | "בטיפול" | "הושלם";
+
+type Update = {
+  date: string;
+  time: string;
+  author: string;
+  message: string;
+};
+
+type Complaint = {
+  id: string;
+  title: string;
+  submitter: string;
+  category: string;
+  status: Status;
+  date: string;
+  description: string;
+  assignedTo?: string | null;
+  updates: Update[];
+};
+
+const STORAGE_KEY = "complaints_v1";
+
+// Initial mock data
+const initialComplaints: Complaint[] = [
   {
     id: "1",
     title: "בעיה עם הארוחות בקפטריה",
     submitter: "יוסי כהן",
     category: "שירותי מזון",
-    status: "פתוח",
+    status: "לא שויך",
     date: "2024-01-15",
-    priority: "גבוה",
-    description: "איכות הארוחות ירודה וההמתנה ארוכה מדי..."
+    description: "איכות הארוחות ירודה וההמתנה ארוכה מדי...",
+    assignedTo: null,
+    updates: [
+      { date: "2024-01-15", time: "14:30", author: "מערכת", message: "פנייה נקלטה במערכת" },
+    ],
   },
   {
-    id: "2", 
+    id: "2",
     title: "רעש בשעות הפסקה",
     submitter: "מרים לוי",
     category: "סביבת למידה",
-    status: "סגור",
+    status: "בטיפול",
     date: "2024-01-12",
-    priority: "בינוני",
-    description: "רעש מופרז במסדרונות המפריע לשיעורים..."
+    description: "רעש מופרז במסדרונות המפריע לשיעורים...",
+    assignedTo: "דני",
+    updates: [
+      { date: "2024-01-12", time: "11:20", author: "מערכת", message: "פנייה נקלטה במערכת" },
+      { date: "2024-01-13", time: "08:45", author: "דני", message: "התחלתי לטפל בפנייה" },
+    ],
   },
   {
     id: "3",
@@ -36,56 +81,107 @@ const mockComplaints = [
     category: "טכנולוגיה",
     status: "פתוח",
     date: "2024-01-10",
-    priority: "דחוף",
-    description: "מחשבים לא עובדים במעבדה..."
+    description: "מחשבים לא עובדים במעבדה...",
+    assignedTo: "רחל",
+    updates: [
+      { date: "2024-01-10", time: "09:05", author: "מערכת", message: "פנייה נקלטה במערכת" },
+      { date: "2024-01-10", time: "10:10", author: "רחל", message: "הפנייה נבדקת" },
+    ],
   },
   {
     id: "4",
     title: "חוסר ניקיון בחדרי השירותים",
     submitter: "שרה מזרחי",
     category: "ניקיון",
-    status: "פתוח", 
+    status: "הושלם",
     date: "2024-01-08",
-    priority: "גבוה",
-    description: "חדרי השירותים לא מנוקים כראוי..."
-  }
+    description: "חדרי השירותים לא מנוקים כראוי...",
+    assignedTo: "יואב",
+    updates: [
+      { date: "2024-01-08", time: "08:15", author: "מערכת", message: "פנייה נקלטה במערכת" },
+      { date: "2024-01-08", time: "12:00", author: "יואב", message: "בוצע ניקיון יסודי" },
+      { date: "2024-01-09", time: "09:30", author: "מערכת", message: "הפנייה הושלמה" },
+    ],
+  },
 ];
 
 const ComplaintsList = () => {
-  const [complaints] = useState(mockComplaints);
+  const navigate = useNavigate();
+
+  const [complaints, setComplaints] = useState<Complaint[]>(() => {
+    const saved = localStorage.getItem(STORAGE_KEY);
+    if (saved) {
+      try { return JSON.parse(saved) as Complaint[]; } catch {}
+    }
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(initialComplaints));
+    return initialComplaints;
+  });
   const [searchTerm, setSearchTerm] = useState("");
   const [categoryFilter, setCategoryFilter] = useState("הכל");
   const [statusFilter, setStatusFilter] = useState("הכל");
-  const navigate = useNavigate();
 
-  const filteredComplaints = complaints.filter(complaint => {
-    const matchesSearch = complaint.title.includes(searchTerm) || 
-                         complaint.submitter.includes(searchTerm) ||
-                         complaint.description.includes(searchTerm);
-    const matchesCategory = categoryFilter === "הכל" || complaint.category === categoryFilter;
-    const matchesStatus = statusFilter === "הכל" || complaint.status === statusFilter;
-    
-    return matchesSearch && matchesCategory && matchesStatus;
-  });
+  // persist on change
+  useEffect(() => {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(complaints));
+  }, [complaints]);
+
+  const filteredComplaints = useMemo(() => {
+    return complaints.filter((complaint) => {
+      const q = searchTerm.trim();
+      const matchesSearch = !q ||
+        complaint.title.includes(q) ||
+        complaint.submitter.includes(q) ||
+        complaint.description.includes(q) ||
+        complaint.category.includes(q) ||
+        (complaint.assignedTo ?? "").includes(q);
+      const matchesCategory = categoryFilter === "הכל" || complaint.category === categoryFilter;
+      const matchesStatus = statusFilter === "הכל" || complaint.status === statusFilter as Status;
+      return matchesSearch && matchesCategory && matchesStatus;
+    });
+  }, [complaints, searchTerm, categoryFilter, statusFilter]);
 
   const handleLogout = () => {
     navigate("/");
   };
 
-  const getStatusBadge = (status: string) => {
-    if (status === "פתוח") {
-      return <Badge className="status-open">פתוח</Badge>;
+  const getStatusBadge = (status: Status) => {
+    switch (status) {
+      case "לא שויך":
+        return <Badge variant="secondary">לא שויך</Badge>;
+      case "פתוח":
+        return <Badge className="bg-primary text-primary-foreground">פתוח</Badge>;
+      case "בטיפול":
+        return <Badge variant="outline" className="border-border text-foreground">בטיפול</Badge>;
+      case "הושלם":
+        return <Badge className="bg-green-600 text-white">הושלם</Badge>;
+      default:
+        return <Badge>פתוח</Badge>;
     }
-    return <Badge className="status-closed">סגור</Badge>;
   };
 
-  const getPriorityColor = (priority: string) => {
-    switch (priority) {
-      case "דחוף": return "text-red-600 font-semibold";
-      case "גבוה": return "text-orange-600 font-medium";
-      case "בינוני": return "text-yellow-600";
-      default: return "text-muted-foreground";
+  const handleClaim = (id: string) => {
+    const username = localStorage.getItem("username");
+    if (!username) {
+      toast("יש להתחבר עם שם משתמש לפני שיוך פנייה");
+      navigate("/");
+      return;
     }
+    setComplaints((prev) => prev.map((c) => {
+      if (c.id !== id) return c;
+      const now = new Date();
+      const date = now.toLocaleDateString('he-IL');
+      const time = now.toLocaleTimeString('he-IL', { hour: '2-digit', minute: '2-digit' });
+      return {
+        ...c,
+        status: c.status === "הושלם" ? c.status : "בטיפול",
+        assignedTo: username,
+        updates: [
+          ...c.updates,
+          { date, time, author: username, message: "הפנייה שויכה לטיפול" },
+        ],
+      };
+    }));
+    toast.success("הפנייה שויכה אליך בהצלחה");
   };
 
   return (
@@ -135,7 +231,7 @@ const ComplaintsList = () => {
               חיפוש וסינון פניות
             </CardTitle>
             <CardDescription className="hebrew-body">
-              מצאו פניות לפי נושא, מגיש או תוכן
+              מצאו פניות לפי נושא, מגיש, מטפל/ת או תוכן
             </CardDescription>
           </CardHeader>
           <CardContent>
@@ -174,8 +270,10 @@ const ComplaintsList = () => {
                 </SelectTrigger>
                 <SelectContent className="rounded-xl">
                   <SelectItem value="הכל">כל הסטטוסים</SelectItem>
+                  <SelectItem value="לא שויך">לא שויך</SelectItem>
                   <SelectItem value="פתוח">פתוח</SelectItem>
-                  <SelectItem value="סגור">סגור</SelectItem>
+                  <SelectItem value="בטיפול">בטיפול</SelectItem>
+                  <SelectItem value="הושלם">הושלם</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -187,7 +285,8 @@ const ComplaintsList = () => {
           <h2 className="hebrew-subtitle text-foreground">
             נמצאו {filteredComplaints.length} פניות
           </h2>
-          <div className="text-sm text-muted-foreground">
+          <div className="text-sm text-muted-foreground flex items-center gap-2">
+            <Clock className="w-4 h-4" />
             מעודכן לאחרונה: {new Date().toLocaleDateString('he-IL')}
           </div>
         </div>
@@ -195,9 +294,9 @@ const ComplaintsList = () => {
         {/* Complaints Grid */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           {filteredComplaints.map((complaint) => (
-            <Card key={complaint.id} className="card-elegant cursor-pointer group">
+            <Card key={complaint.id} className="card-elegant group">
               <CardHeader className="pb-3">
-                <div className="flex items-start justify-between">
+                <div className="flex items-start justify-between gap-3">
                   <div className="flex-1">
                     <CardTitle className="hebrew-subtitle text-lg mb-2 group-hover:text-primary transition-colors">
                       {complaint.title}
@@ -213,7 +312,14 @@ const ComplaintsList = () => {
                       </div>
                     </div>
                   </div>
-                  {getStatusBadge(complaint.status)}
+                  <div className="flex flex-col items-end gap-2">
+                    {getStatusBadge(complaint.status)}
+                    {complaint.status === "לא שויך" && (
+                      <Button size="sm" variant="outline" className="rounded-full" onClick={() => handleClaim(complaint.id)}>
+                        <UserPlus className="w-4 h-4 ml-1" /> שיוך אליי
+                      </Button>
+                    )}
+                  </div>
                 </div>
               </CardHeader>
               
@@ -223,11 +329,17 @@ const ComplaintsList = () => {
                     <span className="text-muted-foreground">קטגוריה:</span>
                     <span className="font-medium">{complaint.category}</span>
                   </div>
-                  
+
                   <div className="flex items-center justify-between text-sm">
-                    <span className="text-muted-foreground">עדיפות:</span>
-                    <span className={getPriorityColor(complaint.priority)}>
-                      {complaint.priority}
+                    <span className="text-muted-foreground">מטפל/ת:</span>
+                    <span className="font-medium">{complaint.assignedTo || "—"}</span>
+                  </div>
+
+                  <div className="flex items-center justify-between text-sm">
+                    <span className="text-muted-foreground">מס' עדכונים:</span>
+                    <span className="font-medium flex items-center gap-1">
+                      <CheckCircle2 className="w-4 h-4 text-muted-foreground" />
+                      {complaint.updates.length}
                     </span>
                   </div>
 
@@ -237,14 +349,24 @@ const ComplaintsList = () => {
                     </p>
                   </div>
 
-                  <div className="pt-3 border-t border-border">
+                  <div className="pt-3 border-t border-border grid grid-cols-2 gap-2">
                     <Button 
                       onClick={() => navigate(`/complaint/${complaint.id}`)}
-                      className="w-full bg-gradient-to-l from-primary to-primary-glow hover:shadow-lg transition-all rounded-xl"
+                      variant="secondary"
+                      className="w-full rounded-xl"
                     >
                       <Eye className="w-4 h-4 ml-2" />
                       צפייה בפרטים
                     </Button>
+                    {complaint.status === "לא שויך" && (
+                      <Button 
+                        onClick={() => handleClaim(complaint.id)}
+                        className="w-full bg-gradient-to-l from-primary to-primary-glow hover:shadow-lg transition-all rounded-xl"
+                      >
+                        <UserPlus className="w-4 h-4 ml-2" />
+                        שיוך אליי
+                      </Button>
+                    )}
                   </div>
                 </div>
               </CardContent>
