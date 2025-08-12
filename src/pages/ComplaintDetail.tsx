@@ -245,8 +245,8 @@ const ComplaintDetail = () => {
                       מטפל/ת: <span className="font-medium">{complaint.assignedTo || "—"}</span>
                     </div>
                     {complaint.status === "לא שויך" && (
-                      <Button size="sm" variant="outline" className="rounded-full" onClick={handleClaim}>
-                        <UserPlus className="w-4 h-4 ml-1" /> שיוך אליי
+                      <Button size="sm" variant="outline" className="rounded-full flex items-center gap-2" onClick={handleClaim}>
+                        <UserPlus className="w-4 h-4" /> שיוך אליי
                       </Button>
                     )}
                   </div>

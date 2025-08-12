@@ -313,12 +313,6 @@ const ComplaintsList = () => {
                     </div>
                   </div>
                   <div className="flex flex-col items-end gap-2">
-                    {getStatusBadge(complaint.status)}
-                    {complaint.status === "לא שויך" && (
-                      <Button size="sm" variant="outline" className="rounded-full" onClick={() => handleClaim(complaint.id)}>
-                        <UserPlus className="w-4 h-4 ml-1" /> שיוך אליי
-                      </Button>
-                    )}
                   </div>
                 </div>
               </CardHeader>
@@ -349,25 +343,25 @@ const ComplaintsList = () => {
                     </p>
                   </div>
 
-                  <div className="pt-3 border-t border-border grid grid-cols-2 gap-2">
-                    <Button 
-                      onClick={() => navigate(`/complaint/${complaint.id}`)}
-                      variant="secondary"
-                      className="w-full rounded-xl"
-                    >
-                      <Eye className="w-4 h-4 ml-2" />
-                      צפייה בפרטים
-                    </Button>
-                    {complaint.status === "לא שויך" && (
+                    <div className="pt-3 border-t border-border grid grid-cols-2 gap-2">
                       <Button 
-                        onClick={() => handleClaim(complaint.id)}
-                        className="w-full bg-gradient-to-l from-primary to-primary-glow hover:shadow-lg transition-all rounded-xl"
+                        onClick={() => navigate(`/complaint/${complaint.id}`)}
+                        variant="secondary"
+                        className="w-full rounded-xl flex items-center justify-center gap-2"
                       >
-                        <UserPlus className="w-4 h-4 ml-2" />
-                        שיוך אליי
+                        <Eye className="w-4 h-4" />
+                        צפייה בפרטים
                       </Button>
-                    )}
-                  </div>
+                      {complaint.status === "לא שויך" && (
+                        <Button 
+                          onClick={() => handleClaim(complaint.id)}
+                          className="w-full bg-gradient-to-l from-primary to-primary-glow hover:shadow-lg transition-all rounded-xl flex items-center justify-center gap-2"
+                        >
+                          <UserPlus className="w-4 h-4" />
+                          שיוך אליי
+                        </Button>
+                      )}
+                    </div>
                 </div>
               </CardContent>
             </Card>
