@@ -47,7 +47,7 @@ useEffect(() => {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-background to-muted rtl">
-      <header className="bg-white/80 backdrop-blur-sm border-b border-border sticky top-0 z-50">
+      <header className="bg-background/80 backdrop-blur-sm border-b border-border sticky top-0 z-50">
         <div className="max-w-3xl mx-auto px-4 py-4">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">

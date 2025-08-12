@@ -300,7 +300,7 @@ const ComplaintDetail = () => {
                 {/* Add Update */}
                 <div className="space-y-3">
                   <Label htmlFor="status">עדכון סטטוס</Label>
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                  <div className="grid grid-cols-1 md:grid-cols-4 gap-3 items-start">
                     <Select value={newStatus} onValueChange={(v) => setNewStatus(v as any)}>
                       <SelectTrigger id="status" className="rounded-xl" disabled={!complaint.assignedTo || complaint.status === "לא שויך"}>
                         <SelectValue placeholder="בחר/י סטטוס" />
@@ -322,13 +322,13 @@ const ComplaintDetail = () => {
                         disabled={!complaint.assignedTo || complaint.status === "לא שויך"}
                       />
                     </div>
+                    <div className="w-full">
+                      <Button onClick={handleAddUpdate} className="rounded-xl w-full h-10 md:h-full" disabled={!complaint.assignedTo || complaint.status === "לא שויך"}>הוסף/י עדכון</Button>
+                    </div>
                   </div>
                   {(!complaint.assignedTo || complaint.status === "לא שויך") && (
                     <p className="text-xs text-muted-foreground">יש לשייך את הפנייה לפני עדכון סטטוס או הוספת הערות.</p>
                   )}
-                  <div className="flex gap-2">
-                    <Button onClick={handleAddUpdate} className="rounded-xl" disabled={!complaint.assignedTo || complaint.status === "לא שויך"}>הוסף/י עדכון</Button>
-                  </div>
                 </div>
               </CardContent>
             </Card>
