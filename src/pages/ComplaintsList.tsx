@@ -187,7 +187,7 @@ const ComplaintsList = () => {
   return (
     <div className="min-h-screen bg-gradient-to-br from-background to-muted rtl">
       {/* Header */}
-      <header className="bg-white/80 backdrop-blur-sm border-b border-border sticky top-0 z-50">
+      <header className="bg-background/80 backdrop-blur-sm border-b border-border sticky top-0 z-50">
         <div className="max-w-7xl mx-auto px-4 py-4">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
@@ -313,6 +313,7 @@ const ComplaintsList = () => {
                     </div>
                   </div>
                   <div className="flex flex-col items-end gap-2">
+                    {getStatusBadge(complaint.status)}
                   </div>
                 </div>
               </CardHeader>
@@ -347,7 +348,7 @@ const ComplaintsList = () => {
                       <Button 
                         onClick={() => navigate(`/complaint/${complaint.id}`)}
                         variant="secondary"
-                        className="w-full rounded-xl flex items-center justify-center gap-2"
+                        className={`w-full rounded-xl flex items-center justify-center gap-2 ${complaint.status !== "לא שויך" ? "col-span-2" : ""}`}
                       >
                         <Eye className="w-4 h-4" />
                         צפייה בפרטים

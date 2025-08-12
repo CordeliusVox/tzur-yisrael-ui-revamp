@@ -38,6 +38,7 @@ type Complaint = {
   title: string;
   submitter: string;
   submitterEmail?: string;
+  submitterPhone?: string;
   category: string;
   status: Status;
   date: string;
@@ -191,7 +192,7 @@ const ComplaintDetail = () => {
   return (
     <div className="min-h-screen bg-gradient-to-br from-background to-muted rtl">
       {/* Header */}
-      <header className="bg-white/80 backdrop-blur-sm border-b border-border sticky top-0 z-50">
+      <header className="bg-background/80 backdrop-blur-sm border-b border-border sticky top-0 z-50">
         <div className="max-w-4xl mx-auto px-4 py-4">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
@@ -244,11 +245,6 @@ const ComplaintDetail = () => {
                     <div className="text-xs text-muted-foreground">
                       מטפל/ת: <span className="font-medium">{complaint.assignedTo || "—"}</span>
                     </div>
-                    {complaint.status === "לא שויך" && (
-                      <Button size="sm" variant="outline" className="rounded-full flex items-center gap-2" onClick={handleClaim}>
-                        <UserPlus className="w-4 h-4" /> שיוך אליי
-                      </Button>
-                    )}
                   </div>
                 </div>
               </CardHeader>
@@ -306,7 +302,7 @@ const ComplaintDetail = () => {
                   <Label htmlFor="status">עדכון סטטוס</Label>
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
                     <Select value={newStatus} onValueChange={(v) => setNewStatus(v as any)}>
-                      <SelectTrigger id="status" className="rounded-xl">
+                      <SelectTrigger id="status" className="rounded-xl" disabled={!complaint.assignedTo || complaint.status === "לא שויך"}>
                         <SelectValue placeholder="בחר/י סטטוס" />
                       </SelectTrigger>
                       <SelectContent>
@@ -323,12 +319,15 @@ const ComplaintDetail = () => {
                         onChange={(e) => setNewUpdate(e.target.value)}
                         placeholder="הוסיפו טקסט לעדכון (אופציונלי)"
                         className="rounded-xl"
+                        disabled={!complaint.assignedTo || complaint.status === "לא שויך"}
                       />
                     </div>
                   </div>
+                  {(!complaint.assignedTo || complaint.status === "לא שויך") && (
+                    <p className="text-xs text-muted-foreground">יש לשייך את הפנייה לפני עדכון סטטוס או הוספת הערות.</p>
+                  )}
                   <div className="flex gap-2">
-                    <Button onClick={handleAddUpdate} className="rounded-xl">הוסף/י עדכון</Button>
-                    <Button variant="secondary" onClick={markCompleted} className="rounded-xl">סמן כהושלם</Button>
+                    <Button onClick={handleAddUpdate} className="rounded-xl" disabled={!complaint.assignedTo || complaint.status === "לא שויך"}>הוסף/י עדכון</Button>
                   </div>
                 </div>
               </CardContent>
@@ -410,6 +409,9 @@ const ComplaintDetail = () => {
                   <p className="hebrew-body font-medium">{complaint.submitter}</p>
                   {complaint.submitterEmail && (
                     <p className="text-sm text-muted-foreground" dir="ltr">{complaint.submitterEmail}</p>
+                  )}
+                  {complaint.submitterPhone && (
+                    <p className="text-sm text-muted-foreground" dir="ltr">{complaint.submitterPhone}</p>
                   )}
                 </div>
 
