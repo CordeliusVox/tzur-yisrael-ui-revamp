@@ -14,7 +14,101 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      complaint_updates: {
+        Row: {
+          complaint_id: string
+          created_at: string
+          id: string
+          message: string
+          user_id: string
+        }
+        Insert: {
+          complaint_id: string
+          created_at?: string
+          id?: string
+          message: string
+          user_id: string
+        }
+        Update: {
+          complaint_id?: string
+          created_at?: string
+          id?: string
+          message?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "complaint_updates_complaint_id_fkey"
+            columns: ["complaint_id"]
+            isOneToOne: false
+            referencedRelation: "complaints"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      complaints: {
+        Row: {
+          assigned_to: string | null
+          category: string
+          created_at: string
+          description: string
+          id: string
+          status: string
+          submitter_id: string
+          title: string
+          updated_at: string
+        }
+        Insert: {
+          assigned_to?: string | null
+          category: string
+          created_at?: string
+          description: string
+          id?: string
+          status?: string
+          submitter_id: string
+          title: string
+          updated_at?: string
+        }
+        Update: {
+          assigned_to?: string | null
+          category?: string
+          created_at?: string
+          description?: string
+          id?: string
+          status?: string
+          submitter_id?: string
+          title?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      profiles: {
+        Row: {
+          created_at: string
+          email: string
+          id: string
+          updated_at: string
+          user_id: string
+          username: string | null
+        }
+        Insert: {
+          created_at?: string
+          email: string
+          id?: string
+          updated_at?: string
+          user_id: string
+          username?: string | null
+        }
+        Update: {
+          created_at?: string
+          email?: string
+          id?: string
+          updated_at?: string
+          user_id?: string
+          username?: string | null
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
