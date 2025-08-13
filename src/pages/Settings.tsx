@@ -1,16 +1,76 @@
-import { useEffect } from "react";
-import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Switch } from "@/components/ui/switch";
-import { Label } from "@/components/ui/label";
-import { useTheme } from "next-themes";
+import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import { Settings as SettingsIcon, Moon, SunMedium, ChevronRight } from "lucide-react";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Switch } from "@/components/ui/switch";
+import { useToast } from "@/hooks/use-toast";
+import { useAuth } from "@/hooks/useAuth";
+import { useTheme } from "next-themes";
+import { supabase } from "@/integrations/supabase/client";
+import { ArrowLeft, Settings as SettingsIcon, Moon, SunMedium } from "lucide-react";
 
 
 const Settings = () => {
   const navigate = useNavigate();
+  const { user, updateProfile } = useAuth();
   const { theme, setTheme } = useTheme();
+  const { toast } = useToast();
+  const [loading, setLoading] = useState(false);
+  const [profile, setProfile] = useState({
+    username: '',
+    email: ''
+  });
+
+  useEffect(() => {
+    if (user) {
+      fetchProfile();
+    }
+  }, [user]);
+
+  const fetchProfile = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('profiles')
+        .select('username, email')
+        .eq('user_id', user?.id)
+        .single();
+
+      if (error) throw error;
+
+      setProfile({
+        username: data.username || '',
+        email: data.email || ''
+      });
+    } catch (error) {
+      console.error('Error fetching profile:', error);
+    }
+  };
+
+  const handleSave = async () => {
+    if (!user) return;
+
+    setLoading(true);
+    try {
+      const { error } = await updateProfile(profile.username);
+      
+      if (error) throw error;
+
+      toast({
+        title: "ההגדרות נשמרו",
+        description: "הפרופיל שלך עודכן בהצלחה"
+      });
+    } catch (error) {
+      toast({
+        variant: "destructive",
+        title: "שגיאה",
+        description: "לא ניתן לעדכן את הפרופיל"
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
 
 
 // SEO: title, meta description, canonical
@@ -55,14 +115,14 @@ useEffect(() => {
                 <SettingsIcon className="w-6 h-6 text-primary-foreground" />
               </div>
               <div>
-                <h1 className="hebrew-title text-primary">הגדרות מערכת</h1>
-                <p className="text-sm text-muted-foreground">ניהול נראות</p>
+                <h1 className="hebrew-title text-primary">הגדרות</h1>
+                <p className="text-sm text-muted-foreground">ניהול פרופיל ומערכת</p>
               </div>
             </div>
 
             <Button variant="outline" onClick={() => navigate('/complaints')} className="rounded-xl">
-              <ChevronRight className="w-4 h-4 ml-2" />
-              חזרה לרשימת הפניות
+              <ArrowLeft className="w-4 h-4 ml-2" />
+              חזרה לתלונות
             </Button>
           </div>
         </div>
@@ -70,6 +130,50 @@ useEffect(() => {
 
       <main className="max-w-3xl mx-auto px-4 py-8">
         <div className="space-y-6">
+          {/* Profile Section */}
+          <Card className="card-elegant">
+            <CardHeader>
+              <CardTitle className="hebrew-subtitle">פרטי פרופיל</CardTitle>
+              <CardDescription className="hebrew-body">
+                עדכן את פרטי הפרופיל שלך
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="space-y-2">
+                <Label htmlFor="username" className="hebrew-body">שם משתמש</Label>
+                <Input
+                  id="username"
+                  value={profile.username}
+                  onChange={(e) => setProfile({ ...profile, username: e.target.value })}
+                  className="text-right"
+                  placeholder="הזן שם משתמש"
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="email" className="hebrew-body">כתובת אימייל</Label>
+                <Input
+                  id="email"
+                  type="email"
+                  value={profile.email}
+                  disabled
+                  className="text-right bg-muted"
+                />
+                <p className="text-sm text-muted-foreground">
+                  לא ניתן לשנות את כתובת האימייל
+                </p>
+              </div>
+
+              <Button 
+                onClick={handleSave} 
+                className="btn-school"
+                disabled={loading}
+              >
+                {loading ? 'שומר...' : 'שמור שינויים'}
+              </Button>
+            </CardContent>
+          </Card>
+
           {/* Theme Section */}
           <Card className="card-elegant">
             <CardHeader>
@@ -78,7 +182,7 @@ useEffect(() => {
                 מצב תאורה
               </CardTitle>
               <CardDescription className="hebrew-body">
-                בחרי/בחרי בין מצב בהיר למצב כהה לממשק המערכת
+                בחר בין מצב בהיר למצב כהה לממשק המערכת
               </CardDescription>
             </CardHeader>
             <CardContent>
@@ -105,7 +209,6 @@ useEffect(() => {
               </div>
             </CardContent>
           </Card>
-
         </div>
       </main>
     </div>
