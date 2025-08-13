@@ -196,7 +196,7 @@ const ComplaintsList = () => {
               </div>
               <div>
                 <h1 className="hebrew-title text-primary">מערכת ניהול פניות</h1>
-                <p className="text-sm text-muted-foreground">בית ספר יסודי הרצל</p>
+                <p className="text-sm text-muted-foreground">בית הספר טכני ב"ש</p>
               </div>
             </div>
             
