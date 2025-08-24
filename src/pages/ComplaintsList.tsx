@@ -275,9 +275,30 @@ export default function ComplaintsList() {
                 </SelectContent>
               </Select>
 
-              <Button className="btn-school">
+              <Button 
+                className="btn-school"
+                onClick={async () => {
+                  try {
+                    const { data, error } = await supabase.functions.invoke('sync-google-sheets');
+                    if (error) throw error;
+                    
+                    toast({
+                      title: "סנכרון הושלם",
+                      description: `${data.synced} תלונות חדשות נוספו מהגיליון`
+                    });
+                    
+                    fetchComplaints();
+                  } catch (error) {
+                    toast({
+                      variant: "destructive",
+                      title: "שגיאה בסנכרון",
+                      description: "לא ניתן לסנכרן עם הגיליון"
+                    });
+                  }
+                }}
+              >
                 <Plus className="h-4 w-4 ml-2" />
-                תלונה חדשה
+                סנכרן מגיליון
               </Button>
             </div>
           </CardContent>
