@@ -20,7 +20,13 @@ serve(async (req) => {
       throw new Error('Google Service Account Key not found');
     }
 
-    const credentials = JSON.parse(serviceAccountKey);
+    let credentials;
+    try {
+      credentials = JSON.parse(serviceAccountKey);
+    } catch (error) {
+      console.error('Failed to parse service account key as JSON:', error);
+      throw new Error('Service account key must be in JSON format');
+    }
     console.log('Parsed service account credentials');
 
     // Create JWT for Google API authentication
@@ -115,13 +121,20 @@ serve(async (req) => {
     console.log(`Found ${rows.length} rows in the sheet`);
 
     // Skip header row and process complaints
+    // Hebrew columns: חותמת זמן, מגיש הפנייה, תפקיד, מחלקה, שם מגיש, מספר טלפון, נושא הפנייה, כותרת הפנייה, פרטי הפנייה, שכבה, כיתה, מגיש הפנייה
     const complaints = rows.slice(1).map((row, index) => {
       return {
-        title: row[0] || `תלונה ${index + 1}`,
-        description: row[1] || 'תיאור לא זמין',
-        category: row[2] || 'אחר',
-        status: row[3] || 'לא שויך',
-        submitter_email: row[4] || 'unknown@example.com'
+        title: row[7] || `תלונה ${index + 1}`, // כותרת הפנייה
+        description: row[8] || 'תיאור לא זמין', // פרטי הפנייה
+        category: row[6] || 'אחר', // נושא הפנייה
+        status: 'לא שויך',
+        submitter_email: row[1] || 'unknown@example.com', // מגיש הפנייה
+        submitter_name: row[4] || 'לא ידוע', // שם מגיש
+        phone: row[5] || '', // מספר טלפון
+        department: row[3] || '', // מחלקה
+        role: row[2] || '', // תפקיד
+        grade: row[9] || '', // שכבה
+        class: row[10] || '' // כיתה
       };
     });
 

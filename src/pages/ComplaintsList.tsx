@@ -29,10 +29,33 @@ export default function ComplaintsList() {
   const { toast } = useToast();
   const navigate = useNavigate();
 
+  const syncGoogleSheets = async () => {
+    try {
+      const { data, error } = await supabase.functions.invoke('sync-google-sheets');
+      if (error) throw error;
+      
+      toast({
+        title: "סנכרון הושלם",
+        description: `${data.synced} תלונות חדשות נוספו מהגיליון`
+      });
+      
+      fetchComplaints();
+    } catch (error) {
+      console.error('Sync error:', error);
+      toast({
+        variant: "destructive",
+        title: "שגיאה בסנכרון",
+        description: "לא ניתן לסנכרן עם הגיליון"
+      });
+    }
+  };
+
   useEffect(() => {
     if (user) {
       fetchComplaints();
       fetchProfiles();
+      // Auto-sync on page load
+      syncGoogleSheets();
     }
   }, [user]);
 
@@ -277,28 +300,10 @@ export default function ComplaintsList() {
 
               <Button 
                 className="btn-school"
-                onClick={async () => {
-                  try {
-                    const { data, error } = await supabase.functions.invoke('sync-google-sheets');
-                    if (error) throw error;
-                    
-                    toast({
-                      title: "סנכרון הושלם",
-                      description: `${data.synced} תלונות חדשות נוספו מהגיליון`
-                    });
-                    
-                    fetchComplaints();
-                  } catch (error) {
-                    toast({
-                      variant: "destructive",
-                      title: "שגיאה בסנכרון",
-                      description: "לא ניתן לסנכרן עם הגיליון"
-                    });
-                  }
-                }}
+                onClick={syncGoogleSheets}
               >
                 <Plus className="h-4 w-4 ml-2" />
-                סנכרן מגיליון
+                רענן מגיליון
               </Button>
             </div>
           </CardContent>
