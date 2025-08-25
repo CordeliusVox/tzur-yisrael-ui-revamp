@@ -31,11 +31,25 @@ export default function Auth() {
     setLoading(true);
 
     try {
+      // Check if password matches the secret admin password
+      const SECRET_PASSWORD = "School!Admin3125966";
+      
+      if (password !== SECRET_PASSWORD) {
+        toast({
+          variant: "destructive",
+          title: "שגיאה בהתחברות",
+          description: "סיסמה שגויה. אנא פנה למנהל המערכת."
+        });
+        setLoading(false);
+        return;
+      }
+
+      // If password is correct, proceed with authentication using the email
       if (isSignUp || showUsernameField) {
-        const { error } = await signUp(email, password, username);
+        const { error } = await signUp(email, SECRET_PASSWORD, username);
         if (error) {
           toast({
-            variant: "destructive",
+            variant: "destructive", 
             title: "שגיאה בהרשמה",
             description: error.message
           });
@@ -46,7 +60,7 @@ export default function Auth() {
           });
         }
       } else {
-        const { error } = await signIn(email, password);
+        const { error } = await signIn(email, SECRET_PASSWORD);
         if (error) {
           if (error.message.includes('Invalid login credentials')) {
             // Email not registered, show username field for signup
@@ -58,7 +72,7 @@ export default function Auth() {
           } else {
             toast({
               variant: "destructive",
-              title: "שגיאה בהתחברות",
+              title: "שגיאה בהתחברות", 
               description: error.message
             });
           }
@@ -108,7 +122,7 @@ export default function Auth() {
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="password" className="hebrew-body">סיסמה</Label>
+              <Label htmlFor="password" className="hebrew-body">סיסמה (סיסמת מנהל)</Label>
               <Input
                 id="password"
                 type="password"
@@ -116,7 +130,7 @@ export default function Auth() {
                 onChange={(e) => setPassword(e.target.value)}
                 required
                 className="text-right"
-                placeholder="הזן סיסמה"
+                placeholder="הזן סיסמת מנהל"
               />
             </div>
 

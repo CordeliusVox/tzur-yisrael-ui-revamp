@@ -285,13 +285,15 @@ export default function ComplaintsList() {
         </Card>
 
         {/* Complaints List */}
-        <div className="space-y-4 mb-6">
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
           {paginatedComplaints.length === 0 ? (
-            <Card className="card-elegant">
-              <CardContent className="text-center py-12">
-                <p className="text-muted-foreground hebrew-body">לא נמצאו תלונות</p>
-              </CardContent>
-            </Card>
+            <div className="col-span-full">
+              <Card className="card-elegant">
+                <CardContent className="text-center py-12">
+                  <p className="text-muted-foreground hebrew-body">לא נמצאו תלונות</p>
+                </CardContent>
+              </Card>
+            </div>
           ) : (
             paginatedComplaints.map((complaint) => (
               <Card 
@@ -299,32 +301,12 @@ export default function ComplaintsList() {
                 className={`card-elegant cursor-pointer ${getComplaintCardClass(complaint.age)}`}
                 onClick={() => navigate(`/complaint/${complaint.id}`)}
               >
-                <CardContent className="p-6">
-                  <div className="flex items-start justify-between">
-                    <div className="flex-1">
-                      <div className="flex items-center gap-3 mb-2">
-                        <h3 className="text-xl font-semibold hebrew-subtitle">{complaint.title}</h3>
-                        {getStatusBadge(complaint.status)}
-                        <Badge variant="outline">{complaint.category}</Badge>
-                      </div>
-                      
-                      <p className="text-muted-foreground mb-3 hebrew-body line-clamp-2">
-                        {complaint.description}
-                      </p>
-                      
-                      <div className="flex items-center gap-4 text-sm text-muted-foreground">
-                        <div className="flex items-center gap-1">
-                          <User className="h-4 w-4" />
-                          <span>מגיש: {getUserDisplay(complaint.submitter_id)}</span>
-                        </div>
-                        <span>{formatTimeAgo(complaint.created_at)}</span>
-                        {complaint.assigned_to && (
-                          <span>מטופל על ידי: {getUserDisplay(complaint.assigned_to)}</span>
-                        )}
-                      </div>
-                    </div>
-                    
-                    <div className="flex gap-2 mr-4" onClick={(e) => e.stopPropagation()}>
+                <CardHeader className="pb-3">
+                  <div className="flex items-center justify-between">
+                    <CardTitle className="text-lg hebrew-subtitle line-clamp-1">
+                      {complaint.title}
+                    </CardTitle>
+                    <div className="flex gap-2" onClick={(e) => e.stopPropagation()}>
                       {complaint.status === 'לא שויך' && (
                         <Button
                           size="sm"
@@ -333,6 +315,29 @@ export default function ComplaintsList() {
                         >
                           תפוס
                         </Button>
+                      )}
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    {getStatusBadge(complaint.status)}
+                    <Badge variant="outline">{complaint.category}</Badge>
+                  </div>
+                </CardHeader>
+                
+                <CardContent className="pt-0">
+                  <p className="text-muted-foreground mb-4 hebrew-body line-clamp-3">
+                    {complaint.description}
+                  </p>
+                  
+                  <div className="space-y-2 text-sm text-muted-foreground">
+                    <div className="flex items-center gap-1">
+                      <User className="h-4 w-4" />
+                      <span>מגיש: {getUserDisplay(complaint.submitter_id)}</span>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <span>{formatTimeAgo(complaint.created_at)}</span>
+                      {complaint.assigned_to && (
+                        <span className="text-xs">מטופל על ידי: {getUserDisplay(complaint.assigned_to)}</span>
                       )}
                     </div>
                   </div>
