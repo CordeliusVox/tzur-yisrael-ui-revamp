@@ -5,7 +5,6 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { Pagination, PaginationContent, PaginationItem, PaginationLink, PaginationNext, PaginationPrevious } from '@/components/ui/pagination';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/hooks/useAuth';
@@ -21,8 +20,6 @@ export default function ComplaintsList() {
   const [statusFilter, setStatusFilter] = useState('הכל');
   const [currentPage, setCurrentPage] = useState(1);
   const [loading, setLoading] = useState(true);
-  const [deleteId, setDeleteId] = useState<string | null>(null);
-  const [completeId, setCompleteId] = useState<string | null>(null);
   const [profiles, setProfiles] = useState<Record<string, { username?: string; email: string }>>({});
   
   const complaintsPerPage = 25;
@@ -177,57 +174,6 @@ export default function ComplaintsList() {
         description: "לא ניתן לתפוס את התלונה"
       });
     }
-  };
-
-  const handleComplete = async (id: string) => {
-    try {
-      // Auto-delete when completed
-      const { error } = await supabase
-        .from('complaints')
-        .delete()
-        .eq('id', id);
-
-      if (error) throw error;
-
-      toast({
-        title: "התלונה הושלמה",
-        description: "התלונה הושלמה ונמחקה מהמערכת"
-      });
-
-      fetchComplaints();
-    } catch (error) {
-      toast({
-        variant: "destructive",
-        title: "שגיאה",
-        description: "לא ניתן להשלים את התלונה"
-      });
-    }
-    setCompleteId(null);
-  };
-
-  const handleDelete = async (id: string) => {
-    try {
-      const { error } = await supabase
-        .from('complaints')
-        .delete()
-        .eq('id', id);
-
-      if (error) throw error;
-
-      toast({
-        title: "התלונה נמחקה",
-        description: "התלונה נמחקה בהצלחה"
-      });
-
-      fetchComplaints();
-    } catch (error) {
-      toast({
-        variant: "destructive",
-        title: "שגיאה",
-        description: "לא ניתן למחוק את התלונה"
-      });
-    }
-    setDeleteId(null);
   };
 
   const getStatusBadge = (status: string) => {
@@ -388,28 +334,6 @@ export default function ComplaintsList() {
                           תפוס
                         </Button>
                       )}
-                      
-                      {(complaint.assigned_to === user?.id || complaint.submitter_id === user?.id) && (
-                        <>
-                          {complaint.status !== 'הושלם' && (
-                            <Button
-                              size="sm"
-                              onClick={() => setCompleteId(complaint.id)}
-                              className="bg-success text-success-foreground hover:bg-success/80"
-                            >
-                              סמן כהושלם
-                            </Button>
-                          )}
-                          
-                          <Button
-                            size="sm"
-                            variant="destructive"
-                            onClick={() => setDeleteId(complaint.id)}
-                          >
-                            מחק
-                          </Button>
-                        </>
-                      )}
                     </div>
                   </div>
                 </CardContent>
@@ -455,42 +379,6 @@ export default function ComplaintsList() {
           </Pagination>
         )}
       </div>
-
-      {/* Delete Confirmation Dialog */}
-      <AlertDialog open={deleteId !== null} onOpenChange={() => setDeleteId(null)}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>אישור מחיקה</AlertDialogTitle>
-            <AlertDialogDescription>
-              האם אתה בטוח שברצונך למחוק את התלונה? פעולה זו לא ניתנת לביטול.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>ביטול</AlertDialogCancel>
-            <AlertDialogAction onClick={() => deleteId && handleDelete(deleteId)}>
-              מחק
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
-
-      {/* Complete Confirmation Dialog */}
-      <AlertDialog open={completeId !== null} onOpenChange={() => setCompleteId(null)}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>אישור השלמה</AlertDialogTitle>
-            <AlertDialogDescription>
-              האם אתה בטוח שברצונך לסמן את התלונה כהושלמה? התלונה תימחק אוטומטית מהמערכת.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>ביטול</AlertDialogCancel>
-            <AlertDialogAction onClick={() => completeId && handleComplete(completeId)}>
-              סמן כהושלם
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
     </div>
   );
 }
