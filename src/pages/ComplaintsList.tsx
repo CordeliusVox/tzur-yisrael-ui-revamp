@@ -52,12 +52,93 @@ export default function ComplaintsList() {
 
   useEffect(() => {
     if (user) {
-      fetchComplaints();
+      // Load mock complaints instead of fetching from database
+      loadMockComplaints();
       fetchProfiles();
-      // Auto-sync on page load
-      syncGoogleSheets();
     }
   }, [user]);
+
+  const loadMockComplaints = () => {
+    const now = new Date();
+    
+    // Create 6 mock complaints with different ages
+    const mockComplaintsData = [
+      {
+        id: '1',
+        title: 'תקלה בחדר המחשבים',
+        description: 'המחשבים בחדר 101 לא פועלים כבר שבוע. צריך תיקון דחוף.',
+        category: 'טכני',
+        status: 'לא שויך',
+        submitter_id: user?.id || 'user1',
+        assigned_to: null,
+        created_at: new Date(now.getTime() - 8 * 24 * 60 * 60 * 1000).toISOString(), // 8 days ago - RED
+        updated_at: new Date(now.getTime() - 8 * 24 * 60 * 60 * 1000).toISOString()
+      },
+      {
+        id: '2',
+        title: 'בעיה בניקיון השירותים',
+        description: 'השירותים בקומה השנייה לא נוקו כבר כמה ימים.',
+        category: 'ניקיון',
+        status: 'פתוח',
+        submitter_id: user?.id || 'user2',
+        assigned_to: null,
+        created_at: new Date(now.getTime() - 5 * 24 * 60 * 60 * 1000).toISOString(), // 5 days ago - YELLOW
+        updated_at: new Date(now.getTime() - 5 * 24 * 60 * 60 * 1000).toISOString()
+      },
+      {
+        id: '3',
+        title: 'בעיית בטיחות במגרש',
+        description: 'יש חור במגרש הכדורסל שעלול לגרום לפציעות.',
+        category: 'בטיחות',
+        status: 'בטיפול',
+        submitter_id: user?.id || 'user3',
+        assigned_to: user?.id,
+        created_at: new Date(now.getTime() - 4 * 24 * 60 * 60 * 1000).toISOString(), // 4 days ago - YELLOW
+        updated_at: new Date(now.getTime() - 4 * 24 * 60 * 60 * 1000).toISOString()
+      },
+      {
+        id: '4',
+        title: 'בקשה לתיקון דלת הכיתה',
+        description: 'הדלת של כיתה 201 לא נסגרת כמו שצריך.',
+        category: 'אחר',
+        status: 'לא שויך',
+        submitter_id: user?.id || 'user4',
+        assigned_to: null,
+        created_at: new Date(now.getTime() - 2 * 24 * 60 * 60 * 1000).toISOString(), // 2 days ago - WHITE
+        updated_at: new Date(now.getTime() - 2 * 24 * 60 * 60 * 1000).toISOString()
+      },
+      {
+        id: '5',
+        title: 'בעיה עם המזגן בספרייה',
+        description: 'המזגן בספרייה לא עובד טוב ובחדר חם מאוד.',
+        category: 'טכני',
+        status: 'פתוח',
+        submitter_id: user?.id || 'user5',
+        assigned_to: null,
+        created_at: new Date(now.getTime() - 1 * 24 * 60 * 60 * 1000).toISOString(), // 1 day ago - WHITE
+        updated_at: new Date(now.getTime() - 1 * 24 * 60 * 60 * 1000).toISOString()
+      },
+      {
+        id: '6',
+        title: 'בקשה להוספת פח אשפה',
+        description: 'חסר פח אשפה בחצר ליד ספסלי הישיבה.',
+        category: 'ניקיון',
+        status: 'לא שויך',
+        submitter_id: user?.id || 'user6',
+        assigned_to: null,
+        created_at: new Date().toISOString(), // Today - WHITE
+        updated_at: new Date().toISOString()
+      }
+    ];
+
+    const complaintsWithAge = mockComplaintsData.map(complaint => {
+      const { age, daysOld } = getComplaintAge(complaint.created_at, complaint.status);
+      return { ...complaint, age, daysOld };
+    });
+
+    setComplaints(sortComplaintsByPriority(complaintsWithAge));
+    setLoading(false);
+  };
 
   const fetchComplaints = async () => {
     try {
