@@ -41,7 +41,7 @@ export default function ComplaintsList() {
     } catch (error) {
       console.error('Sync error:', error);
       toast({
-        variant: "destructive",
+        variant: "destructive", 
         title: "שגיאה בסנכרון",
         description: "לא ניתן לסנכרן עם הגיליון"
       });
@@ -52,6 +52,13 @@ export default function ComplaintsList() {
     if (user) {
       fetchComplaints();
       fetchProfiles();
+      
+      // Auto-sync every minute
+      const syncInterval = setInterval(() => {
+        syncGoogleSheets();
+      }, 60000); // 60 seconds
+
+      return () => clearInterval(syncInterval);
     }
   }, [user]);
 
@@ -207,7 +214,7 @@ export default function ComplaintsList() {
         {/* Filters */}
         <Card className="card-elegant mb-6">
           <CardContent className="pt-6">
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               <div className="relative">
                 <Search className="absolute right-3 top-1/2 transform -translate-y-1/2 text-muted-foreground h-4 w-4" />
                 <Input
@@ -244,13 +251,9 @@ export default function ComplaintsList() {
                 </SelectContent>
               </Select>
 
-              <Button 
-                className="btn-school"
-                onClick={syncGoogleSheets}
-              >
-                <Plus className="h-4 w-4 ml-2" />
-                רענן מגיליון
-              </Button>
+              <div className="text-sm text-muted-foreground flex items-center justify-center px-4 py-2 rounded-lg bg-muted">
+                מתעדכן אוטומטית כל דקה
+              </div>
             </div>
           </CardContent>
         </Card>
