@@ -96,7 +96,7 @@ serve(async (req) => {
 
     // Google Sheet configuration
     const SHEET_ID = '175Cy5X6zNDaNAfDwK6HuuFZVFOQspDAweFTXgB-BoIk';
-    const RANGE = 'תגובות לטופס 1'; // Hebrew range name
+    const RANGE = 'תגובות לתופס 1'; // Hebrew range name
 
     // Fetch data from Google Sheets
     console.log('Fetching data from Google Sheets...');
@@ -120,21 +120,65 @@ serve(async (req) => {
     
     console.log(`Found ${rows.length} rows in the sheet`);
 
+    if (rows.length === 0) {
+      throw new Error('No data found in the sheet');
+    }
+
+    // Get headers and find column indices (handling duplicates)
+    const headers = rows[0] || [];
+    console.log('Headers found:', headers);
+
+    // Helper function to get value from multiple possible columns (for duplicates)
+    const getValueFromColumns = (row, columnName) => {
+      const indices = [];
+      headers.forEach((header, index) => {
+        if (header && header.trim() === columnName) {
+          indices.push(index);
+        }
+      });
+      
+      // Return the first non-empty value from matching columns
+      for (const index of indices) {
+        const value = row[index];
+        if (value && value.toString().trim() !== '') {
+          return value.toString().trim();
+        }
+      }
+      return '';
+    };
+
     // Skip header row and process complaints
-    // Hebrew columns: חותמת זמן, מגיש הפנייה, תפקיד, מחלקה, שם מגיש, מספר טלפון, נושא הפנייה, כותרת הפנייה, פרטי הפנייה, שכבה, כיתה, מגיש הפנייה
     const complaints = rows.slice(1).map((row, index) => {
+      // Use helper function to get values, handling duplicates by taking first non-empty
+      const title = getValueFromColumns(row, 'כותרת הפנייה') || `תלונה ${index + 1}`;
+      const description = getValueFromColumns(row, 'פרטי הפנייה') || 'תיאור לא זמין';
+      const category = getValueFromColumns(row, 'נושא הפנייה') || 'אחר';
+      const submitter_email = getValueFromColumns(row, 'מגיש הפנייה') || 'unknown@example.com';
+      const submitter_name = getValueFromColumns(row, 'שם פונה (שם פרטי + שם משפחה)') || 'לא ידוע';
+      const phone = getValueFromColumns(row, 'מספר טלפון') || '';
+      const department = getValueFromColumns(row, 'מחלקה') || '';
+      const role = getValueFromColumns(row, 'תפקיד') || '';
+      const grade = getValueFromColumns(row, 'שכבה') || '';
+      const class_name = getValueFromColumns(row, 'כיתה') || '';
+
+      console.log(`Processing row ${index + 1}:`, {
+        title: title.substring(0, 50),
+        submitter_email,
+        category
+      });
+
       return {
-        title: row[7] || `תלונה ${index + 1}`, // כותרת הפנייה
-        description: row[8] || 'תיאור לא זמין', // פרטי הפנייה
-        category: row[6] || 'אחר', // נושא הפנייה
+        title,
+        description,
+        category,
         status: 'לא שויך',
-        submitter_email: row[1] || 'unknown@example.com', // מגיש הפנייה
-        submitter_name: row[4] || 'לא ידוע', // שם מגיש
-        phone: row[5] || '', // מספר טלפון
-        department: row[3] || '', // מחלקה
-        role: row[2] || '', // תפקיד
-        grade: row[9] || '', // שכבה
-        class: row[10] || '' // כיתה
+        submitter_email,
+        submitter_name,
+        phone,
+        department,
+        role,
+        grade,
+        class: class_name
       };
     });
 
