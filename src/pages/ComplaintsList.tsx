@@ -11,7 +11,7 @@ import { useAuth } from '@/hooks/useAuth';
 import { supabase } from '@/integrations/supabase/client';
 import { Settings, LogOut, Search, Plus, User } from 'lucide-react';
 import { getComplaintAge, getComplaintCardClass, sortComplaintsByPriority, formatTimeAgo, type ComplaintWithAge } from '@/utils/complaintUtils';
-import { getMockComplaints } from '@/utils/mockComplaints';
+
 
 export default function ComplaintsList() {
   const [complaints, setComplaints] = useState<ComplaintWithAge[]>([]);
@@ -50,40 +50,11 @@ export default function ComplaintsList() {
 
   useEffect(() => {
     if (user) {
-      // Load mock complaints instead of fetching from database
-      loadMockComplaints();
+      fetchComplaints();
       fetchProfiles();
     }
   }, [user]);
 
-  const loadMockComplaints = () => {
-    const mockComplaintsData = getMockComplaints(user?.id);
-
-    const complaintsWithAge = mockComplaintsData.map(complaint => {
-      const { age, daysOld } = getComplaintAge(complaint.created_at, complaint.status);
-      return { ...complaint, age, daysOld };
-    });
-
-    // Also save to localStorage for ComplaintDetail page compatibility
-    const STORAGE_KEY = "complaints_v1";
-    const detailComplaintsFormat = mockComplaintsData.map(complaint => ({
-      id: complaint.id,
-      title: complaint.title,
-      submitter: complaint.submitter,
-      submitterEmail: complaint.submitterEmail,
-      submitterPhone: complaint.submitterPhone,
-      category: complaint.category,
-      status: complaint.status,
-      date: complaint.date,
-      description: complaint.description,
-      assignedTo: complaint.assignedTo,
-      updates: complaint.updates
-    }));
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(detailComplaintsFormat));
-
-    setComplaints(sortComplaintsByPriority(complaintsWithAge));
-    setLoading(false);
-  };
 
   const fetchComplaints = async () => {
     try {

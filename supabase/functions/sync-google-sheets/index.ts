@@ -94,9 +94,9 @@ serve(async (req) => {
     const accessToken = tokenData.access_token;
     console.log('Got access token successfully');
 
-    // TODO: Replace with your actual Google Sheet ID and range
-    const SHEET_ID = 'YOUR_SHEET_ID_HERE';
-    const RANGE = 'Sheet1!A:E'; // Adjust range as needed
+    // Google Sheet configuration
+    const SHEET_ID = '175Cy5X6zNDaNAfDwK6HuuFZVFOQspDAweFTXgB-BoIk';
+    const RANGE = 'תגובות לטופס 1'; // Hebrew range name
 
     // Fetch data from Google Sheets
     console.log('Fetching data from Google Sheets...');
