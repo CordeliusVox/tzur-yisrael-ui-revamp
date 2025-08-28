@@ -96,12 +96,15 @@ serve(async (req) => {
 
     // Google Sheet configuration
     const SHEET_ID = '175Cy5X6zNDaNAfDwK6HuuFZVFOQspDAweFTXgB-BoIk';
-    const RANGE = 'תגובות לתופס 1'; // Hebrew range name
+    const RANGE = 'תגובות לטופס 1'; // Hebrew range name (corrected)
 
-    // Fetch data from Google Sheets
+    // Fetch data from Google Sheets - properly encode the Hebrew range name
     console.log('Fetching data from Google Sheets...');
+    const encodedRange = encodeURIComponent(RANGE);
+    console.log('Using range:', RANGE, 'Encoded as:', encodedRange);
+    
     const sheetsResponse = await fetch(
-      `https://sheets.googleapis.com/v4/spreadsheets/${SHEET_ID}/values/${RANGE}`,
+      `https://sheets.googleapis.com/v4/spreadsheets/${SHEET_ID}/values/${encodedRange}`,
       {
         headers: {
           'Authorization': `Bearer ${accessToken}`,
