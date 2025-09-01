@@ -1,4 +1,5 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
+import { encode as base64encode } from "https://deno.land/std@0.168.0/encoding/base64.ts"
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -33,13 +34,13 @@ serve(async (req) => {
       throw new Error(`Service account key must be in JSON format: ${error.message}`);
     }
 
+    console.log('Creating JWT for Google API authentication...');
+    
+    // Import a simpler JWT library
+    const { create } = await import('https://deno.land/x/djwt@v3.0.2/mod.ts')
+    
     // Create JWT for Google API authentication
     const now = Math.floor(Date.now() / 1000);
-    const header = {
-      alg: 'RS256',
-      typ: 'JWT'
-    };
-
     const payload = {
       iss: credentials.client_email,
       scope: 'https://www.googleapis.com/auth/spreadsheets.readonly',
@@ -48,19 +49,13 @@ serve(async (req) => {
       iat: now
     };
 
-    // Base64url encode header and payload
-    const encodedHeader = btoa(JSON.stringify(header)).replace(/\+/g, '-').replace(/\//g, '_').replace(/=/g, '');
-    const encodedPayload = btoa(JSON.stringify(payload)).replace(/\+/g, '-').replace(/\//g, '_').replace(/=/g, '');
-
-    // Create signature using RS256
-    const textEncoder = new TextEncoder();
-    const data = textEncoder.encode(`${encodedHeader}.${encodedPayload}`);
-    
     // Import private key for signing
     const privateKeyPem = credentials.private_key.replace(/\\n/g, '\n');
+    console.log('Private key length:', privateKeyPem.length);
+    
     const privateKey = await crypto.subtle.importKey(
       'pkcs8',
-      textEncoder.encode(privateKeyPem),
+      new TextEncoder().encode(privateKeyPem),
       {
         name: 'RSASSA-PKCS1-v1_5',
         hash: 'SHA-256',
@@ -69,11 +64,8 @@ serve(async (req) => {
       ['sign']
     );
 
-    const signature = await crypto.subtle.sign('RSASSA-PKCS1-v1_5', privateKey, data);
-    const encodedSignature = btoa(String.fromCharCode(...new Uint8Array(signature)))
-      .replace(/\+/g, '-').replace(/\//g, '_').replace(/=/g, '');
-
-    const jwt = `${encodedHeader}.${encodedPayload}.${encodedSignature}`;
+    const jwt = await create({ alg: 'RS256', typ: 'JWT' }, payload, privateKey);
+    console.log('JWT created successfully');
 
     // Get access token
     console.log('Requesting access token...');
