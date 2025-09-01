@@ -13,9 +13,12 @@ serve(async (req) => {
 
   try {
     console.log('Starting Google Sheets sync...');
+    console.log('Request method:', req.method);
+    console.log('Request URL:', req.url);
     
     // Get the service account credentials from Supabase secrets
     const serviceAccountKey = Deno.env.get('GOOGLE_SERVICE_ACCOUNT_KEY');
+    console.log('Service account key available:', !!serviceAccountKey);
     if (!serviceAccountKey) {
       throw new Error('Google Service Account Key not found');
     }
