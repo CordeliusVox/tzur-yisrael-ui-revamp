@@ -28,9 +28,17 @@ export default function ComplaintsList() {
   const navigate = useNavigate();
 
   const syncGoogleSheets = async () => {
+    setLoading(true);
     try {
+      console.log('Invoking sync-google-sheets function...');
       const { data, error } = await supabase.functions.invoke('sync-google-sheets');
-      if (error) throw error;
+      
+      console.log('Function response:', { data, error });
+      
+      if (error) {
+        console.error('Function error:', error);
+        throw error;
+      }
       
       toast({
         title: "סנכרון הושלם",
@@ -43,8 +51,10 @@ export default function ComplaintsList() {
       toast({
         variant: "destructive", 
         title: "שגיאה בסנכרון",
-        description: "לא ניתן לסנכרן עם הגיליון"
+        description: `לא ניתן לסנכרן עם הגיליון: ${error.message || 'שגיאה לא ידועה'}`
       });
+    } finally {
+      setLoading(false);
     }
   };
 

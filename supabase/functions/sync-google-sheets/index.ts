@@ -26,11 +26,12 @@ serve(async (req) => {
     let credentials;
     try {
       credentials = JSON.parse(serviceAccountKey);
+      console.log('Successfully parsed service account credentials');
+      console.log('Client email:', credentials.client_email);
     } catch (error) {
       console.error('Failed to parse service account key as JSON:', error);
-      throw new Error('Service account key must be in JSON format');
+      throw new Error(`Service account key must be in JSON format: ${error.message}`);
     }
-    console.log('Parsed service account credentials');
 
     // Create JWT for Google API authentication
     const now = Math.floor(Date.now() / 1000);
@@ -283,11 +284,15 @@ serve(async (req) => {
 
   } catch (error) {
     console.error('Sync function error:', error);
+    console.error('Error stack:', error.stack);
+    console.error('Error message:', error.message);
+    console.error('Error name:', error.name);
     
     return new Response(
       JSON.stringify({
         success: false,
-        error: error.message
+        error: error.message,
+        details: error.stack
       }),
       {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
