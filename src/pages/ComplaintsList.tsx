@@ -186,9 +186,26 @@ export default function ComplaintsList() {
         <Card className="card-elegant mb-6">
           <CardHeader>
             <div className="flex items-center justify-between">
-              <CardTitle className="text-3xl font-bold text-primary hebrew-title">
-                רשימת תלונות
-              </CardTitle>
+              <div className="flex items-center gap-4">
+                <CardTitle className="text-3xl font-bold text-primary hebrew-title">
+                  רשימת תלונות
+                </CardTitle>
+                <div className="flex items-center gap-3">
+                  <div className="bg-primary/10 px-4 py-2 rounded-lg">
+                    <span className="text-lg font-bold text-primary">
+                      סה"כ: {complaints.length} תלונות
+                    </span>
+                  </div>
+                  <Button
+                    onClick={syncGoogleSheets}
+                    disabled={loading}
+                    variant="outline"
+                    size="sm"
+                  >
+                    {loading ? "מסנכרן..." : "סנכרן מגיליון"}
+                  </Button>
+                </div>
+              </div>
               <div className="flex gap-2">
                 <Button
                   variant="outline"
