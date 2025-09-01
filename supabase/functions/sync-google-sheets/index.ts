@@ -36,36 +36,69 @@ serve(async (req) => {
 
     console.log('Creating JWT for Google API authentication...');
     
-    // Import a simpler JWT library
-    const { create } = await import('https://deno.land/x/djwt@v3.0.2/mod.ts')
+    let jwt;
     
-    // Create JWT for Google API authentication
-    const now = Math.floor(Date.now() / 1000);
-    const payload = {
-      iss: credentials.client_email,
-      scope: 'https://www.googleapis.com/auth/spreadsheets.readonly',
-      aud: 'https://oauth2.googleapis.com/token',
-      exp: now + 3600,
-      iat: now
-    };
+    // Let's try a much simpler approach first - test the basic flow
+    try {
+      // Test basic access first
+      console.log('Testing basic Google Sheets API access...');
+      
+      // Create a simple JWT manually (the djwt import was causing issues)
+      const now = Math.floor(Date.now() / 1000);
+      const header = { alg: 'RS256', typ: 'JWT' };
+      const payload = {
+        iss: credentials.client_email,
+        scope: 'https://www.googleapis.com/auth/spreadsheets.readonly',
+        aud: 'https://oauth2.googleapis.com/token',
+        exp: now + 3600,
+        iat: now
+      };
 
-    // Import private key for signing
-    const privateKeyPem = credentials.private_key.replace(/\\n/g, '\n');
-    console.log('Private key length:', privateKeyPem.length);
-    
-    const privateKey = await crypto.subtle.importKey(
-      'pkcs8',
-      new TextEncoder().encode(privateKeyPem),
-      {
-        name: 'RSASSA-PKCS1-v1_5',
-        hash: 'SHA-256',
-      },
-      false,
-      ['sign']
-    );
+      const headerEncoded = btoa(JSON.stringify(header)).replace(/[+/]/g, (c) => c === '+' ? '-' : '_').replace(/=/g, '');
+      const payloadEncoded = btoa(JSON.stringify(payload)).replace(/[+/]/g, (c) => c === '+' ? '-' : '_').replace(/=/g, '');
+      
+      const signData = headerEncoded + '.' + payloadEncoded;
+      console.log('Sign data created, length:', signData.length);
+      
+      // Import the private key properly
+      const privateKeyPem = credentials.private_key.replace(/\\n/g, '\n');
+      console.log('Private key starts with:', privateKeyPem.substring(0, 50));
+      console.log('Private key ends with:', privateKeyPem.substring(privateKeyPem.length - 50));
+      
+      // Convert PEM to ArrayBuffer
+      const pemHeader = "-----BEGIN PRIVATE KEY-----";
+      const pemFooter = "-----END PRIVATE KEY-----";
+      const pemContents = privateKeyPem.substring(pemHeader.length, privateKeyPem.length - pemFooter.length).replace(/\s/g, '');
+      
+      const binaryDer = Uint8Array.from(atob(pemContents), c => c.charCodeAt(0));
+      console.log('Binary DER length:', binaryDer.length);
 
-    const jwt = await create({ alg: 'RS256', typ: 'JWT' }, payload, privateKey);
-    console.log('JWT created successfully');
+      const privateKey = await crypto.subtle.importKey(
+        'pkcs8',
+        binaryDer.buffer,
+        { name: 'RSASSA-PKCS1-v1_5', hash: 'SHA-256' },
+        false,
+        ['sign']
+      );
+      
+      console.log('Private key imported successfully');
+
+      const signature = await crypto.subtle.sign(
+        'RSASSA-PKCS1-v1_5',
+        privateKey,
+        new TextEncoder().encode(signData)
+      );
+      
+      const signatureEncoded = btoa(String.fromCharCode(...new Uint8Array(signature)))
+        .replace(/[+/]/g, (c) => c === '+' ? '-' : '_').replace(/=/g, '');
+      
+      jwt = signData + '.' + signatureEncoded;
+      console.log('JWT created, length:', jwt.length);
+
+    } catch (jwtError) {
+      console.error('JWT creation failed:', jwtError);
+      throw new Error(`JWT creation failed: ${jwtError.message}`);
+    }
 
     // Get access token
     console.log('Requesting access token...');
