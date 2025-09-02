@@ -7,6 +7,7 @@ import { Label } from '@/components/ui/label';
 import { Checkbox } from '@/components/ui/checkbox';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/hooks/useAuth';
+import { supabase } from '@/integrations/supabase/client';
 import { School, ArrowRight, ArrowLeft } from 'lucide-react';
 
 type AuthStep = 'email' | 'existing-user' | 'new-user';
@@ -51,23 +52,31 @@ export default function Auth() {
     setLoading(true);
     
     try {
-      // Try to sign in with a dummy password to check if user exists
-      const { error } = await signIn(email, 'dummy_password_check');
-      
-      if (error) {
-        if (error.message.includes('Invalid login credentials')) {
-          // User doesn't exist, go to new user flow
-          setAuthStep('new-user');
-        } else {
-          // Other error, assume user exists but wrong password
+      // For this school system, we'll always check if user should sign up or sign in
+      // by trying to sign up first (which will fail if user exists)
+      const { error: signUpError } = await supabase.auth.signUp({
+        email,
+        password: 'temp_password_check', // This will be ignored if user exists
+        options: {
+          emailRedirectTo: `${window.location.origin}/complaints`
+        }
+      });
+
+      if (signUpError) {
+        if (signUpError.message.includes('User already registered')) {
+          // User exists, go to existing user flow
           setAuthStep('existing-user');
+        } else {
+          // Other error, assume new user
+          setAuthStep('new-user');
         }
       } else {
-        // Should not happen with dummy password, but handle it
-        setAuthStep('existing-user');
+        // Sign up succeeded, this means new user (but we need to clean up the temp account)
+        await supabase.auth.signOut(); // Clear the temp signup
+        setAuthStep('new-user');
       }
     } catch (error) {
-      // Assume user doesn't exist
+      // Network error or other issue, assume new user
       setAuthStep('new-user');
     } finally {
       setLoading(false);
@@ -269,8 +278,8 @@ export default function Auth() {
 
           {authStep === 'new-user' && (
             <form onSubmit={handleNewUserAuth} className="space-y-4">
-              <div className="bg-primary-light/10 border border-primary-light rounded-lg p-4 mb-4">
-                <p className="text-sm hebrew-body text-primary-foreground">
+              <div className="bg-primary/10 border border-primary/20 rounded-lg p-4 mb-4">
+                <p className="text-sm hebrew-body text-foreground">
                   <strong>משתמש חדש זוהה</strong><br />
                   {email}<br />
                   אנא הזן את פרטי המנהל להרשמה
