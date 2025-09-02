@@ -10,7 +10,7 @@ export const getMockComplaints = (userId?: string) => {
       status: 'לא שויך',
       submitter_id: userId || 'user1',
       assigned_to: null,
-      created_at: new Date(now.getTime() - 8 * 24 * 60 * 60 * 1000).toISOString(), // 8 days ago - RED
+      created_at: new Date(now.getTime() - 8 * 24 * 60 * 60 * 1000).toISOString(), // 8 days ago - CRITICAL
       updated_at: new Date(now.getTime() - 8 * 24 * 60 * 60 * 1000).toISOString(),
       submitter: 'דני כהן',
       submitterEmail: 'danny.cohen@school.edu',
@@ -27,7 +27,7 @@ export const getMockComplaints = (userId?: string) => {
       status: 'פתוח',
       submitter_id: userId || 'user2',
       assigned_to: null,
-      created_at: new Date(now.getTime() - 5 * 24 * 60 * 60 * 1000).toISOString(), // 5 days ago - YELLOW
+      created_at: new Date(now.getTime() - 5 * 24 * 60 * 60 * 1000).toISOString(), // 5 days ago - WARNING
       updated_at: new Date(now.getTime() - 5 * 24 * 60 * 60 * 1000).toISOString(),
       submitter: 'רחל לוי',
       submitterEmail: 'rachel.levi@school.edu',
@@ -44,7 +44,7 @@ export const getMockComplaints = (userId?: string) => {
       status: 'בטיפול',
       submitter_id: userId || 'user3',
       assigned_to: userId,
-      created_at: new Date(now.getTime() - 4 * 24 * 60 * 60 * 1000).toISOString(), // 4 days ago - YELLOW
+      created_at: new Date(now.getTime() - 4 * 24 * 60 * 60 * 1000).toISOString(), // 4 days ago - WARNING
       updated_at: new Date(now.getTime() - 4 * 24 * 60 * 60 * 1000).toISOString(),
       submitter: 'מיכל אברהם',
       submitterEmail: 'michal.avraham@school.edu',
@@ -68,7 +68,7 @@ export const getMockComplaints = (userId?: string) => {
       status: 'לא שויך',
       submitter_id: userId || 'user4',
       assigned_to: null,
-      created_at: new Date(now.getTime() - 2 * 24 * 60 * 60 * 1000).toISOString(), // 2 days ago - WHITE
+      created_at: new Date(now.getTime() - 2 * 24 * 60 * 60 * 1000).toISOString(), // 2 days ago - NEW
       updated_at: new Date(now.getTime() - 2 * 24 * 60 * 60 * 1000).toISOString(),
       submitter: 'יוסי דוד',
       submitterEmail: 'yossi.david@school.edu',
@@ -85,7 +85,7 @@ export const getMockComplaints = (userId?: string) => {
       status: 'פתוח',
       submitter_id: userId || 'user5',
       assigned_to: null,
-      created_at: new Date(now.getTime() - 1 * 24 * 60 * 60 * 1000).toISOString(), // 1 day ago - WHITE
+      created_at: new Date(now.getTime() - 1 * 24 * 60 * 60 * 1000).toISOString(), // 1 day ago - NEW
       updated_at: new Date(now.getTime() - 1 * 24 * 60 * 60 * 1000).toISOString(),
       submitter: 'שרה גולד',
       submitterEmail: 'sara.gold@school.edu',
@@ -102,7 +102,7 @@ export const getMockComplaints = (userId?: string) => {
       status: 'לא שויך',
       submitter_id: userId || 'user6',
       assigned_to: null,
-      created_at: new Date().toISOString(), // Today - WHITE
+      created_at: new Date().toISOString(), // Today - NEW
       updated_at: new Date().toISOString(),
       submitter: 'אבי מרדכי',
       submitterEmail: 'avi.mordechai@school.edu',
@@ -110,6 +110,77 @@ export const getMockComplaints = (userId?: string) => {
       date: new Date().toLocaleDateString('he-IL'),
       assignedTo: null,
       updates: []
+    },
+    {
+      id: '7',
+      title: 'תקלה דחופה במערכת החשמל',
+      description: 'הפסקות חשמל בכל המבנה - בעיה דחופה וקריטית!',
+      category: 'טכני',
+      status: 'לא שויך',
+      submitter_id: userId || 'user7',
+      assigned_to: null,
+      created_at: new Date(now.getTime() - 10 * 24 * 60 * 60 * 1000).toISOString(), // 10 days ago - CRITICAL
+      updated_at: new Date(now.getTime() - 10 * 24 * 60 * 60 * 1000).toISOString(),
+      submitter: 'מנהל המתקן',
+      submitterEmail: 'facility@school.edu',
+      submitterPhone: '050-1111111',
+      date: new Date(now.getTime() - 10 * 24 * 60 * 60 * 1000).toLocaleDateString('he-IL'),
+      assignedTo: null,
+      updates: []
+    },
+    {
+      id: '8',
+      title: 'בעיה עם החימום בכיתות',
+      description: 'מערכת החימום לא עובדת בכיתות הצפוניות.',
+      category: 'טכני',
+      status: 'בטיפול',
+      submitter_id: userId || 'user8',
+      assigned_to: userId,
+      created_at: new Date(now.getTime() - 6 * 24 * 60 * 60 * 1000).toISOString(), // 6 days ago - WARNING
+      updated_at: new Date(now.getTime() - 3 * 24 * 60 * 60 * 1000).toISOString(),
+      submitter: 'צוות הוראה',
+      submitterEmail: 'teachers@school.edu',
+      submitterPhone: '054-2222222',
+      date: new Date(now.getTime() - 6 * 24 * 60 * 60 * 1000).toLocaleDateString('he-IL'),
+      assignedTo: 'טכנאי בניין',
+      updates: [
+        {
+          date: new Date(now.getTime() - 3 * 24 * 60 * 60 * 1000).toLocaleDateString('he-IL'),
+          time: new Date(now.getTime() - 3 * 24 * 60 * 60 * 1000).toLocaleTimeString('he-IL', { hour: '2-digit', minute: '2-digit' }),
+          author: 'טכנאי בניין',
+          message: 'נבדקת המערכת, הוזמנו חלקי חילוף'
+        }
+      ]
+    },
+    {
+      id: '9',
+      title: 'תלונה על רעש בשעות הלימוד',
+      description: 'עבודות שיפוץ גורמות לרעש מופרע במהלך השיעורים.',
+      category: 'אחר',
+      status: 'הושלם',
+      submitter_id: userId || 'user9',
+      assigned_to: userId,
+      created_at: new Date(now.getTime() - 3 * 24 * 60 * 60 * 1000).toISOString(), // 3 days ago - NEW (but completed)
+      updated_at: new Date(now.getTime() - 1 * 24 * 60 * 60 * 1000).toISOString(),
+      submitter: 'מורה ראשי',
+      submitterEmail: 'head.teacher@school.edu',
+      submitterPhone: '053-3333333',
+      date: new Date(now.getTime() - 3 * 24 * 60 * 60 * 1000).toLocaleDateString('he-IL'),
+      assignedTo: 'מנהל',
+      updates: [
+        {
+          date: new Date(now.getTime() - 2 * 24 * 60 * 60 * 1000).toLocaleDateString('he-IL'),
+          time: new Date(now.getTime() - 2 * 24 * 60 * 60 * 1000).toLocaleTimeString('he-IL', { hour: '2-digit', minute: '2-digit' }),
+          author: 'מנהל',
+          message: 'תואם עם קבלן השיפוץ על שעות עבודה'
+        },
+        {
+          date: new Date(now.getTime() - 1 * 24 * 60 * 60 * 1000).toLocaleDateString('he-IL'),
+          time: new Date(now.getTime() - 1 * 24 * 60 * 60 * 1000).toLocaleTimeString('he-IL', { hour: '2-digit', minute: '2-digit' }),
+          author: 'מנהל',
+          message: 'הבעיה נפתרה - עבודות יתבצעו רק אחרי השעות'
+        }
+      ]
     }
   ];
 };

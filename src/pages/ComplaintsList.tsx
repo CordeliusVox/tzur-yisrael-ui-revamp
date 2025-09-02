@@ -8,9 +8,9 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Pagination, PaginationContent, PaginationItem, PaginationLink, PaginationNext, PaginationPrevious } from '@/components/ui/pagination';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/hooks/useAuth';
-import { supabase } from '@/integrations/supabase/client';
-import { Settings, LogOut, Search, Plus, User } from 'lucide-react';
+import { Settings, LogOut, Search, User } from 'lucide-react';
 import { getComplaintAge, getComplaintCardClass, sortComplaintsByPriority, formatTimeAgo, type ComplaintWithAge } from '@/utils/complaintUtils';
+import { getMockComplaints } from '@/utils/mockComplaints';
 
 
 export default function ComplaintsList() {
@@ -20,105 +20,35 @@ export default function ComplaintsList() {
   const [statusFilter, setStatusFilter] = useState('הכל');
   const [currentPage, setCurrentPage] = useState(1);
   const [loading, setLoading] = useState(true);
-  const [profiles, setProfiles] = useState<Record<string, { username?: string; email: string }>>({});
   
   const complaintsPerPage = 25;
   const { user, signOut } = useAuth();
   const { toast } = useToast();
   const navigate = useNavigate();
 
-  const syncGoogleSheets = async () => {
-    setLoading(true);
-    try {
-      console.log('Invoking sync-google-sheets function...');
-      const { data, error } = await supabase.functions.invoke('sync-google-sheets');
-      
-      console.log('Function response:', { data, error });
-      
-      if (error) {
-        console.error('Function error:', error);
-        throw error;
-      }
-      
-      toast({
-        title: "סנכרון הושלם",
-        description: `${data.synced} תלונות חדשות נוספו מהגיליון`
-      });
-      
-      fetchComplaints();
-    } catch (error) {
-      console.error('Sync error:', error);
-      toast({
-        variant: "destructive", 
-        title: "שגיאה בסנכרון",
-        description: `לא ניתן לסנכרן עם הגיליון: ${error.message || 'שגיאה לא ידועה'}`
-      });
-    } finally {
-      setLoading(false);
-    }
-  };
-
   useEffect(() => {
     if (user) {
-      fetchComplaints();
-      fetchProfiles();
-      
-      // Auto-sync every minute
-      const syncInterval = setInterval(() => {
-        syncGoogleSheets();
-      }, 60000); // 60 seconds
-
-      return () => clearInterval(syncInterval);
+      loadMockComplaints();
     }
   }, [user]);
 
-
-  const fetchComplaints = async () => {
-    try {
-      const { data, error } = await supabase
-        .from('complaints')
-        .select('*')
-        .order('created_at', { ascending: false });
-
-      if (error) throw error;
-
-      const complaintsWithAge = data.map(complaint => {
+  const loadMockComplaints = () => {
+    setLoading(true);
+    // Simulate loading time
+    setTimeout(() => {
+      const mockComplaints = getMockComplaints(user?.id);
+      const complaintsWithAge = mockComplaints.map(complaint => {
         const { age, daysOld } = getComplaintAge(complaint.created_at, complaint.status);
-        return { ...complaint, age, daysOld };
-      });
-
-      setComplaints(sortComplaintsByPriority(complaintsWithAge));
-    } catch (error) {
-      toast({
-        variant: "destructive",
-        title: "שגיאה",
-        description: "לא ניתן לטעון את התלונות"
-      });
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const fetchProfiles = async () => {
-    try {
-      const { data, error } = await supabase
-        .from('profiles')
-        .select('user_id, username, email');
-
-      if (error) throw error;
-
-      const profilesMap = data.reduce((acc, profile) => {
-        acc[profile.user_id] = {
-          username: profile.username,
-          email: profile.email
+        return { 
+          ...complaint, 
+          age, 
+          daysOld,
+          submitter_id: complaint.submitter_id || user?.id || 'default-user'
         };
-        return acc;
-      }, {} as Record<string, { username?: string; email: string }>);
-
-      setProfiles(profilesMap);
-    } catch (error) {
-      console.error('Error fetching profiles:', error);
-    }
+      });
+      setComplaints(sortComplaintsByPriority(complaintsWithAge));
+      setLoading(false);
+    }, 500);
   };
 
   const filteredComplaints = useMemo(() => {
@@ -137,31 +67,24 @@ export default function ComplaintsList() {
     currentPage * complaintsPerPage
   );
 
-  const handleClaim = async (id: string) => {
-    try {
-      const { error } = await supabase
-        .from('complaints')
-        .update({ 
+  const handleClaim = (id: string) => {
+    const updatedComplaints = complaints.map(complaint => {
+      if (complaint.id === id && complaint.status === 'לא שויך') {
+        return {
+          ...complaint,
           assigned_to: user?.id,
-          status: 'בטיפול'
-        })
-        .eq('id', id);
-
-      if (error) throw error;
-
-      toast({
-        title: "התלונה נתפסה",
-        description: "התלונה הוקצתה אליך בהצלחה"
-      });
-
-      fetchComplaints();
-    } catch (error) {
-      toast({
-        variant: "destructive",
-        title: "שגיאה",
-        description: "לא ניתן לתפוס את התלונה"
-      });
-    }
+          status: 'בטיפול' as const
+        };
+      }
+      return complaint;
+    });
+    
+    setComplaints(updatedComplaints);
+    
+    toast({
+      title: "התלונה נתפסה",
+      description: "התלונה הוקצתה אליך בהצלחה"
+    });
   };
 
   const getStatusBadge = (status: string) => {
@@ -177,8 +100,8 @@ export default function ComplaintsList() {
   };
 
   const getUserDisplay = (userId: string) => {
-    const profile = profiles[userId];
-    return profile?.username || profile?.email || 'משתמש לא ידוע';
+    if (userId === user?.id) return 'אתה';
+    return 'משתמש אחר';
   };
 
   if (loading) {
@@ -196,26 +119,9 @@ export default function ComplaintsList() {
         <Card className="card-elegant mb-6">
           <CardHeader>
             <div className="flex items-center justify-between">
-              <div className="flex items-center gap-4">
-                <CardTitle className="text-3xl font-bold text-primary hebrew-title">
-                  רשימת תלונות
-                </CardTitle>
-                <div className="flex items-center gap-3">
-                  <div className="bg-primary/10 px-4 py-2 rounded-lg">
-                    <span className="text-lg font-bold text-primary">
-                      סה"כ: {complaints.length} תלונות
-                    </span>
-                  </div>
-                  <Button
-                    onClick={syncGoogleSheets}
-                    disabled={loading}
-                    variant="outline"
-                    size="sm"
-                  >
-                    {loading ? "מסנכרן..." : "סנכרן מגיליון"}
-                  </Button>
-                </div>
-              </div>
+              <CardTitle className="text-3xl font-bold text-primary hebrew-title">
+                רשימת תלונות
+              </CardTitle>
               <div className="flex gap-2">
                 <Button
                   variant="outline"
@@ -277,10 +183,6 @@ export default function ComplaintsList() {
                   <SelectItem value="הושלם">הושלם</SelectItem>
                 </SelectContent>
               </Select>
-
-              <div className="text-sm text-muted-foreground flex items-center justify-center px-4 py-2 rounded-lg bg-muted">
-                מתעדכן אוטומטית כל דקה
-              </div>
             </div>
           </CardContent>
         </Card>

@@ -20,7 +20,8 @@ import {
   Trash2,
   UserPlus,
   Clock,
-  CheckCircle2
+  CheckCircle2,
+  Download
 } from "lucide-react";
 
 // Shared types
@@ -172,6 +173,47 @@ const ComplaintDetail = () => {
     };
     saveComplaint(updated);
     toast({ title: "הושלם", description: "הפנייה הושלמה" });
+  };
+
+  const handleDownloadComplaint = () => {
+    const content = `
+דוח פנייה #${complaint.id}
+============================
+
+כותרת: ${complaint.title}
+קטגוריה: ${complaint.category}
+סטטוס: ${complaint.status}
+תאריך הגשה: ${complaint.date}
+מגיש: ${complaint.submitter}
+${complaint.submitterEmail ? `אימייל: ${complaint.submitterEmail}` : ''}
+${complaint.submitterPhone ? `טלפון: ${complaint.submitterPhone}` : ''}
+${complaint.assignedTo ? `מטפל: ${complaint.assignedTo}` : ''}
+
+תיאור הפנייה:
+${complaint.description}
+
+עדכונים והתקדמות:
+${complaint.updates.length === 0 ? 'אין עדכונים' : complaint.updates.map(update => 
+  `${update.date} ${update.time} - ${update.author}: ${update.message}`
+).join('\n')}
+
+דוח נוצר בתאריך: ${new Date().toLocaleDateString('he-IL')} ${new Date().toLocaleTimeString('he-IL')}
+    `.trim();
+
+    const blob = new Blob([content], { type: 'text/plain;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `complaint_${complaint.id}_${new Date().toLocaleDateString('he-IL').replace(/\//g, '-')}.txt`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+
+    toast({
+      title: "הדוח הורד בהצלחה",
+      description: "קובץ הדוח נשמר במחשב שלך"
+    });
   };
 
   const getStatusBadge = (status: Status) => {
@@ -441,6 +483,14 @@ const ComplaintDetail = () => {
                   className="w-full rounded-xl"
                 >
                   סמן כהושלם
+                </Button>
+                <Button
+                  onClick={handleDownloadComplaint}
+                  variant="outline"
+                  className="w-full rounded-xl"
+                >
+                  <Download className="w-4 h-4 ml-2" />
+                  הורד דוח
                 </Button>
                 <Button
                   onClick={handleDeleteComplaint}
