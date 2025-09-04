@@ -5,12 +5,10 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Checkbox } from '@/components/ui/checkbox';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/hooks/useAuth';
-import { supabase } from '@/integrations/supabase/client';
-import { School, ArrowRight, ArrowLeft } from 'lucide-react';
-
-type AuthStep = 'email' | 'existing-user' | 'new-user';
+import { School } from 'lucide-react';
 
 export default function Auth() {
   const [email, setEmail] = useState('');
@@ -18,7 +16,7 @@ export default function Auth() {
   const [username, setUsername] = useState('');
   const [rememberMe, setRememberMe] = useState(false);
   const [loading, setLoading] = useState(false);
-  const [authStep, setAuthStep] = useState<AuthStep>('email');
+  const [activeTab, setActiveTab] = useState('login');
   
   const { signIn, signUp, user } = useAuth();
   const { toast } = useToast();
@@ -45,45 +43,7 @@ export default function Auth() {
     }
   }, []);
 
-  const handleEmailSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!email.trim()) return;
-
-    setLoading(true);
-    
-    try {
-      // For this school system, we'll always check if user should sign up or sign in
-      // by trying to sign up first (which will fail if user exists)
-      const { error: signUpError } = await supabase.auth.signUp({
-        email,
-        password: 'temp_password_check', // This will be ignored if user exists
-        options: {
-          emailRedirectTo: `${window.location.origin}/complaints`
-        }
-      });
-
-      if (signUpError) {
-        if (signUpError.message.includes('User already registered')) {
-          // User exists, go to existing user flow
-          setAuthStep('existing-user');
-        } else {
-          // Other error, assume new user
-          setAuthStep('new-user');
-        }
-      } else {
-        // Sign up succeeded, this means new user (but we need to clean up the temp account)
-        await supabase.auth.signOut(); // Clear the temp signup
-        setAuthStep('new-user');
-      }
-    } catch (error) {
-      // Network error or other issue, assume new user
-      setAuthStep('new-user');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleExistingUserAuth = async (e: React.FormEvent) => {
+  const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
 
@@ -94,24 +54,6 @@ export default function Auth() {
           title: "שגיאה בהתחברות",
           description: "סיסמה שגויה. אנא פנה למנהל המערכת."
         });
-        setLoading(false);
-        return;
-      }
-
-      // Fake login for testing
-      if (email === "YourEmail@gmail.com/fake") {
-        // Save credentials if remember me is checked
-        if (rememberMe) {
-          localStorage.setItem('rememberedEmail', email);
-          localStorage.setItem('rememberMe', 'true');
-        }
-        
-        toast({
-          title: "התחברות בוצעה בהצלחה",
-          description: "ברוך הבא למערכת!"
-        });
-        
-        navigate('/complaints');
         setLoading(false);
         return;
       }
@@ -133,6 +75,11 @@ export default function Auth() {
           localStorage.removeItem('rememberedUsername');
           localStorage.removeItem('rememberMe');
         }
+
+        toast({
+          title: "התחברות בוצעה בהצלחה",
+          description: "ברוך הבא למערכת!"
+        });
       }
     } catch (error) {
       toast({
@@ -145,7 +92,7 @@ export default function Auth() {
     }
   };
 
-  const handleNewUserAuth = async (e: React.FormEvent) => {
+  const handleSignUp = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
 
@@ -178,7 +125,7 @@ export default function Auth() {
         
         toast({
           title: "הרשמה בוצעה בהצלחה",
-          description: "אנא בדוק את האימייל שלך לאימות. לאחר האימות תועבר ישירות למערכת."
+          description: "נרשמת בהצלחה! מועבר למערכת..."
         });
       }
     } catch (error) {
@@ -190,12 +137,6 @@ export default function Auth() {
     } finally {
       setLoading(false);
     }
-  };
-
-  const resetToEmailStep = () => {
-    setAuthStep('email');
-    setPassword('');
-    setUsername('');
   };
 
   return (
@@ -216,150 +157,123 @@ export default function Auth() {
         </CardHeader>
         
         <CardContent>
-          {authStep === 'email' && (
-            <form onSubmit={handleEmailSubmit} className="space-y-4">
-              <div className="space-y-2">
-                <Label htmlFor="email" className="hebrew-body">כתובת אימייל</Label>
-                <Input
-                  id="email"
-                  type="email"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  required
-                  className="text-right"
-                  placeholder="user@example.com"
-                />
-              </div>
+          <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
+            <TabsList className="grid w-full grid-cols-2 mb-6">
+              <TabsTrigger value="login" className="hebrew-body">התחברות</TabsTrigger>
+              <TabsTrigger value="signup" className="hebrew-body">הרשמה</TabsTrigger>
+            </TabsList>
+            
+            <TabsContent value="login">
+              <form onSubmit={handleLogin} className="space-y-4">
+                <div className="space-y-2">
+                  <Label htmlFor="login-email" className="hebrew-body">כתובת אימייל</Label>
+                  <Input
+                    id="login-email"
+                    type="email"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    required
+                    className="text-right"
+                    placeholder="user@example.com"
+                  />
+                </div>
 
-              <Button
-                type="submit"
-                className="w-full btn-school"
-                disabled={loading || !email.trim()}
-              >
-                {loading ? 'בודק...' : 'המשך'}
-                <ArrowRight className="h-4 w-4 mr-2" />
-              </Button>
-            </form>
-          )}
+                <div className="space-y-2">
+                  <Label htmlFor="login-password" className="hebrew-body">סיסמת מנהל</Label>
+                  <Input
+                    id="login-password"
+                    type="password"
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    required
+                    className="text-right"
+                    placeholder="הזן סיסמת מנהל"
+                  />
+                </div>
 
-          {authStep === 'existing-user' && (
-            <form onSubmit={handleExistingUserAuth} className="space-y-4">
-              <div className="space-y-2">
-                <Label className="hebrew-body text-sm text-muted-foreground">
-                  כתובת אימייל: {email}
-                </Label>
+                <div className="flex items-center space-x-2 space-x-reverse">
+                  <Checkbox
+                    id="remember-login"
+                    checked={rememberMe}
+                    onCheckedChange={(checked) => setRememberMe(checked as boolean)}
+                  />
+                  <label htmlFor="remember-login" className="text-sm hebrew-body cursor-pointer">
+                    זכור אותי
+                  </label>
+                </div>
+
                 <Button
-                  type="button"
-                  variant="ghost"
-                  size="sm"
-                  onClick={resetToEmailStep}
-                  className="p-0 h-auto text-primary"
+                  type="submit"
+                  className="w-full btn-school"
+                  disabled={loading}
                 >
-                  <ArrowLeft className="h-4 w-4 ml-2" />
-                  שנה אימייל
+                  {loading ? 'מתחבר...' : 'התחבר'}
                 </Button>
-              </div>
+              </form>
+            </TabsContent>
 
-              <div className="space-y-2">
-                <Label htmlFor="password" className="hebrew-body">סיסמת מנהל</Label>
-                <Input
-                  id="password"
-                  type="password"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  required
-                  className="text-right"
-                  placeholder="הזן סיסמת מנהל"
-                />
-              </div>
+            <TabsContent value="signup">
+              <form onSubmit={handleSignUp} className="space-y-4">
+                <div className="space-y-2">
+                  <Label htmlFor="signup-email" className="hebrew-body">כתובת אימייל</Label>
+                  <Input
+                    id="signup-email"
+                    type="email"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    required
+                    className="text-right"
+                    placeholder="user@example.com"
+                  />
+                </div>
 
-              <div className="flex items-center space-x-2 space-x-reverse">
-                <Checkbox
-                  id="remember"
-                  checked={rememberMe}
-                  onCheckedChange={(checked) => setRememberMe(checked as boolean)}
-                />
-                <label htmlFor="remember" className="text-sm hebrew-body cursor-pointer">
-                  זכור אותי
-                </label>
-              </div>
+                <div className="space-y-2">
+                  <Label htmlFor="signup-username" className="hebrew-body">שם משתמש</Label>
+                  <Input
+                    id="signup-username"
+                    type="text"
+                    value={username}
+                    onChange={(e) => setUsername(e.target.value)}
+                    required
+                    className="text-right"
+                    placeholder="הזן שם משתמש"
+                  />
+                </div>
 
-              <Button
-                type="submit"
-                className="w-full btn-school"
-                disabled={loading}
-              >
-                {loading ? 'מתחבר...' : 'התחבר'}
-              </Button>
-            </form>
-          )}
+                <div className="space-y-2">
+                  <Label htmlFor="signup-password" className="hebrew-body">סיסמת מנהל</Label>
+                  <Input
+                    id="signup-password"
+                    type="password"
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    required
+                    className="text-right"
+                    placeholder="הזן סיסמת מנהל"
+                  />
+                </div>
 
-          {authStep === 'new-user' && (
-            <form onSubmit={handleNewUserAuth} className="space-y-4">
-              <div className="bg-primary/10 border border-primary/20 rounded-lg p-4 mb-4">
-                <p className="text-sm hebrew-body text-foreground">
-                  <strong>משתמש חדש זוהה</strong><br />
-                  {email}<br />
-                  אנא הזן את פרטי המנהל להרשמה
-                </p>
+                <div className="flex items-center space-x-2 space-x-reverse">
+                  <Checkbox
+                    id="remember-signup"
+                    checked={rememberMe}
+                    onCheckedChange={(checked) => setRememberMe(checked as boolean)}
+                  />
+                  <label htmlFor="remember-signup" className="text-sm hebrew-body cursor-pointer">
+                    זכור אותי
+                  </label>
+                </div>
+
                 <Button
-                  type="button"
-                  variant="ghost" 
-                  size="sm"
-                  onClick={resetToEmailStep}
-                  className="mt-2 p-0 h-auto text-primary"
+                  type="submit"
+                  className="w-full btn-school"
+                  disabled={loading}
                 >
-                  <ArrowLeft className="h-4 w-4 ml-2" />
-                  שנה אימייל
+                  {loading ? 'נרשם...' : 'הירשם'}
                 </Button>
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="username" className="hebrew-body">שם משתמש</Label>
-                <Input
-                  id="username"
-                  type="text"
-                  value={username}
-                  onChange={(e) => setUsername(e.target.value)}
-                  required
-                  className="text-right"
-                  placeholder="הזן שם משתמש"
-                />
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="password" className="hebrew-body">סיסמת מנהל</Label>
-                <Input
-                  id="password"
-                  type="password"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  required
-                  className="text-right"
-                  placeholder="הזן סיסמת מנהל"
-                />
-              </div>
-
-              <div className="flex items-center space-x-2 space-x-reverse">
-                <Checkbox
-                  id="remember"
-                  checked={rememberMe}
-                  onCheckedChange={(checked) => setRememberMe(checked as boolean)}
-                />
-                <label htmlFor="remember" className="text-sm hebrew-body cursor-pointer">
-                  זכור אותי
-                </label>
-              </div>
-
-              <Button
-                type="submit"
-                className="w-full btn-school"
-                disabled={loading}
-              >
-                {loading ? 'נרשם...' : 'הירשם'}
-              </Button>
-            </form>
-          )}
+              </form>
+            </TabsContent>
+          </Tabs>
 
           <div className="mt-8 text-center text-xs text-muted-foreground">
             <p>גרסה 1.0.0</p>
