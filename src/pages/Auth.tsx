@@ -98,6 +98,24 @@ export default function Auth() {
         return;
       }
 
+      // Fake login for testing
+      if (email === "YourEmail@gmail.com/fake") {
+        // Save credentials if remember me is checked
+        if (rememberMe) {
+          localStorage.setItem('rememberedEmail', email);
+          localStorage.setItem('rememberMe', 'true');
+        }
+        
+        toast({
+          title: "התחברות בוצעה בהצלחה",
+          description: "ברוך הבא למערכת!"
+        });
+        
+        navigate('/complaints');
+        setLoading(false);
+        return;
+      }
+
       const { error } = await signIn(email, SECRET_PASSWORD);
       if (error) {
         toast({
