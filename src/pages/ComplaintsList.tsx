@@ -47,6 +47,24 @@ export default function ComplaintsList() {
         };
       });
       setComplaints(sortComplaintsByPriority(complaintsWithAge));
+      
+      // Also save to localStorage so ComplaintDetail can access them
+      const STORAGE_KEY = "complaints_v1";
+      const complaintsForStorage = mockComplaints.map(complaint => ({
+        id: complaint.id,
+        title: complaint.title,
+        submitter: complaint.submitter,
+        submitterEmail: complaint.submitterEmail,
+        submitterPhone: complaint.submitterPhone,
+        category: complaint.category,
+        status: complaint.status,
+        date: complaint.date,
+        description: complaint.description,
+        assignedTo: complaint.assignedTo,
+        updates: complaint.updates || []
+      }));
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(complaintsForStorage));
+      
       setLoading(false);
     }, 500);
   };

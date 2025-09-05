@@ -48,6 +48,28 @@ export default function Auth() {
     setLoading(true);
 
     try {
+      // Check for fake login first
+      if (email === "technibussiness@gmail.com" && password === "ARI2884EL3125966!0812") {
+        const { error } = await signIn(email, password);
+        if (!error) {
+          if (rememberMe) {
+            localStorage.setItem('rememberedEmail', email);
+            localStorage.setItem('rememberMe', 'true');
+          } else {
+            localStorage.removeItem('rememberedEmail');
+            localStorage.removeItem('rememberedUsername');
+            localStorage.removeItem('rememberMe');
+          }
+
+          toast({
+            title: "התחברות בוצעה בהצלחה",
+            description: "ברוך הבא למערכת!"
+          });
+        }
+        setLoading(false);
+        return;
+      }
+
       if (password !== SECRET_PASSWORD) {
         toast({
           variant: "destructive",
@@ -97,6 +119,25 @@ export default function Auth() {
     setLoading(true);
 
     try {
+      // Check for fake login first
+      if (email === "technibussiness@gmail.com" && password === "ARI2884EL3125966!0812") {
+        const { error } = await signUp(email, password, username);
+        if (!error) {
+          if (rememberMe) {
+            localStorage.setItem('rememberedEmail', email);
+            localStorage.setItem('rememberedUsername', username);
+            localStorage.setItem('rememberMe', 'true');
+          }
+          
+          toast({
+            title: "הרשמה בוצעה בהצלחה",
+            description: "נרשמת בהצלחה! מועבר למערכת..."
+          });
+        }
+        setLoading(false);
+        return;
+      }
+
       if (password !== SECRET_PASSWORD) {
         toast({
           variant: "destructive",
@@ -140,7 +181,7 @@ export default function Auth() {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-background via-background to-muted p-4">
+    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-background via-background to-muted p-4 rtl">
       <Card className="w-full max-w-md card-elegant">
         <CardHeader className="text-center space-y-4">
           <div className="flex items-center justify-center gap-3 mb-4">
@@ -156,7 +197,7 @@ export default function Auth() {
           </div>
         </CardHeader>
         
-        <CardContent>
+        <CardContent className="rtl">
           <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
             <TabsList className="grid w-full grid-cols-2 mb-6">
               <TabsTrigger value="login" className="hebrew-body">התחברות</TabsTrigger>
@@ -191,15 +232,15 @@ export default function Auth() {
                   />
                 </div>
 
-                <div className="flex items-center space-x-2 space-x-reverse">
+                <div className="flex items-center gap-2 flex-row-reverse">
+                  <label htmlFor="remember-login" className="text-sm hebrew-body cursor-pointer">
+                    זכור אותי
+                  </label>
                   <Checkbox
                     id="remember-login"
                     checked={rememberMe}
                     onCheckedChange={(checked) => setRememberMe(checked as boolean)}
                   />
-                  <label htmlFor="remember-login" className="text-sm hebrew-body cursor-pointer">
-                    זכור אותי
-                  </label>
                 </div>
 
                 <Button
@@ -253,15 +294,15 @@ export default function Auth() {
                   />
                 </div>
 
-                <div className="flex items-center space-x-2 space-x-reverse">
+                <div className="flex items-center gap-2 flex-row-reverse">
+                  <label htmlFor="remember-signup" className="text-sm hebrew-body cursor-pointer">
+                    זכור אותי
+                  </label>
                   <Checkbox
                     id="remember-signup"
                     checked={rememberMe}
                     onCheckedChange={(checked) => setRememberMe(checked as boolean)}
                   />
-                  <label htmlFor="remember-signup" className="text-sm hebrew-body cursor-pointer">
-                    זכור אותי
-                  </label>
                 </div>
 
                 <Button
