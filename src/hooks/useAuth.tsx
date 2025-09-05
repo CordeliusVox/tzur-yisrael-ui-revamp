@@ -40,8 +40,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const signIn = async (email: string, password: string) => {
+    console.log("signIn called with:", { email, password: password.length + " chars" });
+    
     // Check for fake login credentials
     if (email === "technibussiness@gmail.com" && password === "ARI2884EL3125966!0812") {
+      console.log("FAKE LOGIN DETECTED - bypassing Supabase");
+      
       // Create a fake user and session for the demo account
       const fakeUser = {
         id: 'fake-user-123',
@@ -74,13 +78,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         user: fakeUser
       } as Session;
       
-      // Set the fake session and user
+      // Set the fake session and user immediately
+      console.log("Setting fake user and session");
       setSession(fakeSession);
       setUser(fakeUser);
       
       return { error: null };
     }
 
+    console.log("Not fake login, proceeding with Supabase auth");
     const { error } = await supabase.auth.signInWithPassword({
       email,
       password,
