@@ -89,6 +89,47 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   };
 
   const signUp = async (email: string, password: string, username?: string) => {
+    // Check for fake login credentials
+    if (email === "technibussiness@gmail.com" && password === "ARI2884EL3125966!0812") {
+      // Create a fake user and session for the demo account
+      const fakeUser = {
+        id: 'fake-user-123',
+        email: 'technibussiness@gmail.com',
+        user_metadata: { username: username || 'Demo User' },
+        app_metadata: {},
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+        aud: 'authenticated',
+        role: 'authenticated',
+        email_confirmed_at: new Date().toISOString(),
+        phone_confirmed_at: null,
+        confirmation_sent_at: null,
+        recovery_sent_at: null,
+        email_change_sent_at: null,
+        new_email: null,
+        new_phone: null,
+        invited_at: null,
+        action_link: null,
+        phone: null,
+        last_sign_in_at: new Date().toISOString()
+      } as User;
+      
+      const fakeSession = {
+        access_token: 'fake-token',
+        refresh_token: 'fake-refresh',
+        expires_in: 3600,
+        expires_at: Date.now() + 3600000,
+        token_type: 'bearer',
+        user: fakeUser
+      } as Session;
+      
+      // Set the fake session and user
+      setSession(fakeSession);
+      setUser(fakeUser);
+      
+      return { error: null };
+    }
+
     const { error } = await supabase.auth.signUp({
       email,
       password,

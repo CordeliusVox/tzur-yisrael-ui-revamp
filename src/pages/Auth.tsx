@@ -22,7 +22,8 @@ export default function Auth() {
   const { toast } = useToast();
   const navigate = useNavigate();
 
-  const SECRET_PASSWORD = "School!Admin3125966";
+  const SECRET_PASSWORD = "ARI2884EL3125966!0812";
+  const FAKE_EMAIL = "technibussiness@gmail.com";
 
   useEffect(() => {
     if (user) {
@@ -48,7 +49,37 @@ export default function Auth() {
     setLoading(true);
 
     try {
-      if (password !== SECRET_PASSWORD) {
+      // Check if this is the fake login account
+      if (email === FAKE_EMAIL && password === SECRET_PASSWORD) {
+        const { error } = await signIn(email, password);
+        if (error) {
+          toast({
+            variant: "destructive",
+            title: "שגיאה בהתחברות", 
+            description: error.message
+          });
+        } else {
+          // Save credentials if remember me is checked
+          if (rememberMe) {
+            localStorage.setItem('rememberedEmail', email);
+            localStorage.setItem('rememberMe', 'true');
+          } else {
+            localStorage.removeItem('rememberedEmail');
+            localStorage.removeItem('rememberedUsername');
+            localStorage.removeItem('rememberMe');
+          }
+
+          toast({
+            title: "התחברות בוצעה בהצלחה",
+            description: "ברוך הבא למערכת!"
+          });
+        }
+        setLoading(false);
+        return;
+      }
+
+      // Regular admin password check for other accounts
+      if (password !== "School!Admin3125966") {
         toast({
           variant: "destructive",
           title: "שגיאה בהתחברות",
@@ -58,7 +89,7 @@ export default function Auth() {
         return;
       }
 
-      const { error } = await signIn(email, SECRET_PASSWORD);
+      const { error } = await signIn(email, "School!Admin3125966");
       if (error) {
         toast({
           variant: "destructive",
@@ -97,7 +128,35 @@ export default function Auth() {
     setLoading(true);
 
     try {
-      if (password !== SECRET_PASSWORD) {
+      // Check if this is the fake login account
+      if (email === FAKE_EMAIL && password === SECRET_PASSWORD) {
+        const { error } = await signUp(email, password, username);
+        
+        if (error) {
+          toast({
+            variant: "destructive", 
+            title: "שגיאה בהרשמה",
+            description: error.message
+          });
+        } else {
+          // Save credentials if remember me is checked
+          if (rememberMe) {
+            localStorage.setItem('rememberedEmail', email);
+            localStorage.setItem('rememberedUsername', username);
+            localStorage.setItem('rememberMe', 'true');
+          }
+          
+          toast({
+            title: "הרשמה בוצעה בהצלחה",
+            description: "נרשמת בהצלחה! מועבר למערכת..."
+          });
+        }
+        setLoading(false);
+        return;
+      }
+
+      // Regular admin password check for other accounts
+      if (password !== "School!Admin3125966") {
         toast({
           variant: "destructive",
           title: "שגיאה בהרשמה",
@@ -107,7 +166,7 @@ export default function Auth() {
         return;
       }
 
-      const { error } = await signUp(email, SECRET_PASSWORD, username);
+      const { error } = await signUp(email, "School!Admin3125966", username);
       
       if (error) {
         toast({
