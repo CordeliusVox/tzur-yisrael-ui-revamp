@@ -10,7 +10,7 @@ import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/hooks/useAuth';
 import { Settings, LogOut, Search, User } from 'lucide-react';
 import { getComplaintAge, getComplaintCardClass, sortComplaintsByPriority, formatTimeAgo, type ComplaintWithAge } from '@/utils/complaintUtils';
-import { getMockComplaints } from '@/utils/mockComplaints';
+
 
 
 export default function ComplaintsList() {
@@ -28,51 +28,70 @@ export default function ComplaintsList() {
 
   useEffect(() => {
     if (user) {
-      loadMockComplaints();
+      loadComplaints();
     }
   }, [user]);
 
-  const loadMockComplaints = () => {
+  const loadComplaints = async () => {
     setLoading(true);
-    // Simulate loading time
-    setTimeout(() => {
-      const mockComplaints = getMockComplaints(user?.id);
-      const complaintsWithAge = mockComplaints.map(complaint => {
+    try {
+      const response = await fetch('/functions/v1/sync-google-sheets', {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      });
+      
+      if (!response.ok) {
+        throw new Error('Failed to fetch complaints');
+      }
+      
+      const complaintsData = await response.json();
+      
+      const complaintsWithAge = complaintsData.map((complaint: any) => {
         const { age, daysOld } = getComplaintAge(complaint.created_at, complaint.status);
         return { 
           ...complaint, 
           age, 
           daysOld,
-          submitter_id: complaint.submitter_id || user?.id || 'default-user'
+          submitter_id: complaint.submitter_id || 'external'
         };
       });
       setComplaints(sortComplaintsByPriority(complaintsWithAge));
       
       // Also save to localStorage so ComplaintDetail can access them
       const STORAGE_KEY = "complaints_v1";
-      const complaintsForStorage = mockComplaints.map(complaint => ({
+      const complaintsForStorage = complaintsData.map((complaint: any) => ({
         id: complaint.id,
         title: complaint.title,
-        submitter: complaint.submitter,
-        submitterEmail: complaint.submitterEmail,
-        submitterPhone: complaint.submitterPhone,
+        submitter: complaint.submitter || complaint.name,
+        submitterEmail: '',
+        submitterPhone: complaint.phone,
         category: complaint.category,
         status: complaint.status,
-        date: complaint.date,
-        description: complaint.description,
-        assignedTo: complaint.assignedTo,
-        updates: complaint.updates || []
+        date: complaint.created_at,
+        description: complaint.details,
+        assignedTo: complaint.assigned_to,
+        updates: []
       }));
       localStorage.setItem(STORAGE_KEY, JSON.stringify(complaintsForStorage));
-      
+    } catch (error) {
+      console.error('Error loading complaints:', error);
+      toast({
+        title: "שגיאה",
+        description: "נכשל בטעינת התלונות",
+        variant: "destructive"
+      });
+    } finally {
       setLoading(false);
-    }, 500);
+    }
   };
 
   const filteredComplaints = useMemo(() => {
     return complaints.filter(complaint => {
+      const description = complaint.description || (complaint as any).details || '';
       const matchesSearch = complaint.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        complaint.description.toLowerCase().includes(searchTerm.toLowerCase());
+        description.toLowerCase().includes(searchTerm.toLowerCase());
       const matchesCategory = categoryFilter === 'הכל' || complaint.category === categoryFilter;
       const matchesStatus = statusFilter === 'הכל' || complaint.status === statusFilter;
       return matchesSearch && matchesCategory && matchesStatus;
@@ -246,9 +265,9 @@ export default function ComplaintsList() {
                 </CardHeader>
                 
                 <CardContent className="pt-0">
-                  <p className="text-muted-foreground mb-4 hebrew-body line-clamp-3">
-                    {complaint.description}
-                  </p>
+                   <p className="text-muted-foreground mb-4 hebrew-body line-clamp-3">
+                     {complaint.description || (complaint as any).details}
+                   </p>
                   
                   <div className="space-y-2 text-sm text-muted-foreground">
                     <div className="flex items-center gap-1">
