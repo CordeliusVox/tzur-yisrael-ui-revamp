@@ -133,7 +133,7 @@ useEffect(() => {
           {/* Profile Section */}
           <Card className="card-elegant">
             <CardHeader>
-              <CardTitle className="hebrew-subtitle"> i think פרטי פרופיל</CardTitle>
+              <CardTitle className="hebrew-subtitle">פרטי פרופיל</CardTitle>
               <CardDescription className="hebrew-body">
                 עדכן את פרטי הפרופיל שלך
               </CardDescription>
