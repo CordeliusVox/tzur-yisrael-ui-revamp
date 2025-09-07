@@ -35,7 +35,7 @@ export default function ComplaintsList() {
   const loadComplaints = async () => {
     setLoading(true);
     try {
-      const response = await fetch('/functions/v1/sync-google-sheets', {
+      const response = await fetch('https://daxknkbmetzajmgdpniz.supabase.co/functions/v1/sync-google-sheets', {
         method: 'GET',
         headers: {
           'Content-Type': 'application/json',
