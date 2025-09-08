@@ -1,78 +1,57 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
-import { google } from "npm:googleapis@118.0.0";
+import { google } from "https://cdn.skypack.dev/googleapis@105.0.0";
 
 // CONFIG
 const SHEET_ID = "1paz6Ox8TnSiBdct3TxfTFt4I3bbeFnEWeH0y-c24ZxM";
 const RANGE = "Form Responses 1";
 
-// Map Hebrew field names → Normalized keys
-const FIELD_MAP: Record<string, string[]> = {
-  timestamp: ["timestamp"],
-  submitter: ["מגיש הפנייה"],
-  role: ["תפקיד"],
-  department: ["מחלקה"],
-  name: ["שם פונה (שם פרטי + שם משפחה)"],
-  phone: ["מספר טלפון"],
-  topic: ["נושא הפנייה"],
-  title: ["כותרת הפנייה"],
-  details: ["פרטי הפנייה"],
-  gradeLevel: ["שכבה"],
-  class: ["כיתה"],
-  email: ["כתובת אימייל"],
+// Map Hebrew field names → normalized keys
+const FIELD_MAP: Record<string,string> = {
+  "חותמת זמן": "timestamp",
+  "מגיש הפנייה": "submitter",
+  "תפקיד": "role",
+  "מחלקה": "department",
+  "שם פונה (שם פרטי + שם משפחה)": "name",
+  "מספר טלפון": "phone",
+  "נושא הפנייה": "topic",
+  "כותרת הפנייה": "title",
+  "פרטי הפנייה": "details",
+  "שכבה": "gradeLevel",
+  "כיתה": "class",
+  "כתובת אימייל": "email"
 };
-
-// Create Google Sheets client using service account JSON
-async function getSheetsClient() {
-  const credentials = JSON.parse(Deno.env.get("GOOGLE_JSON_KEY")!);
-  const auth = new google.auth.GoogleAuth({
-    credentials,
-    scopes: ["https://www.googleapis.com/auth/spreadsheets.readonly"],
-  });
-  return google.sheets({ version: "v4", auth });
-}
 
 async function fetchComplaints() {
   try {
-    const sheets = await getSheetsClient();
+    const credentials = JSON.parse(Deno.env.get("GOOGLE_JSON_KEY")!);
 
-    const response = await sheets.spreadsheets.values.get({
+    const auth = new google.auth.GoogleAuth({
+      credentials,
+      scopes: ["https://www.googleapis.com/auth/spreadsheets.readonly"],
+    });
+
+    const sheets = google.sheets({ version: "v4", auth });
+
+    const res = await sheets.spreadsheets.values.get({
       spreadsheetId: SHEET_ID,
       range: RANGE,
     });
 
-    const rows = response.data.values;
+    const rows = res.data.values;
     if (!rows || rows.length === 0) return [];
 
     const headers = rows[0];
     const dataRows = rows.slice(1);
 
-    // Map headers → indices
-    const headerIndices: Record<string, number[]> = {};
-    for (let colIndex = 0; colIndex < headers.length; colIndex++) {
-      const header = headers[colIndex];
-      for (const [key, possibleHeaders] of Object.entries(FIELD_MAP)) {
-        if (possibleHeaders.includes(header)) {
-          if (!headerIndices[key]) headerIndices[key] = [];
-          headerIndices[key].push(colIndex);
-        }
-      }
-    }
-
-    const complaints = dataRows.map((row: string[], idx: number) => {
-      const entry: Record<string, string> = {};
-
-      for (const [key, indices] of Object.entries(headerIndices)) {
-        for (const i of indices) {
-          const value = row[i] || "";
-          if (value.trim() !== "") {
-            entry[key] = value;
-            break; // take first non-empty
-          }
-        }
-      }
+    const complaints = dataRows.map((row, idx) => {
+      const entry: Record<string,string> = {};
+      headers.forEach((header, i) => {
+        const key = FIELD_MAP[header];
+        if (key) entry[key] = row[i] || "";
+      });
 
       return {
-        id: (idx + 1).toString(),
+        id: (idx+1).toString(),
         timestamp: entry.timestamp || "",
         submitter: entry.submitter || "",
         role: entry.role || "",
@@ -93,7 +72,8 @@ async function fetchComplaints() {
       };
     });
 
-    return complaints.filter((c) => c.title || c.details);
+    return complaints.filter(c => c.title || c.details);
+
   } catch (error) {
     console.error("Error fetching complaints:", error);
     return [];
@@ -111,21 +91,11 @@ serve(async (req) => {
     });
   }
 
-  try {
-    const complaints = await fetchComplaints();
-    return new Response(JSON.stringify(complaints), {
-      headers: {
-        "Content-Type": "application/json",
-        "Access-Control-Allow-Origin": "*",
-      },
-    });
-  } catch (error) {
-    return new Response(JSON.stringify({ error: "Failed to fetch complaints" }), {
-      status: 500,
-      headers: {
-        "Content-Type": "application/json",
-        "Access-Control-Allow-Origin": "*",
-      },
-    });
-  }
+  const complaints = await fetchComplaints();
+  return new Response(JSON.stringify(complaints), {
+    headers: {
+      "Content-Type": "application/json",
+      "Access-Control-Allow-Origin": "*",
+    },
+  });
 });
