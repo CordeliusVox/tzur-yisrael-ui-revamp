@@ -1,10 +1,11 @@
-import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
+import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+import { google } from "https://cdn.jsdelivr.net/npm/googleapis@131.0.0/build/src/index.js";
 
 // CONFIG
-const SHEET_ID = "1paz6Ox8TnSiBdct3TxfTFt4I3bbeFnEWeH0y-c24ZxM;
+const SHEET_ID = "1paz6Ox8TnSiBdct3TxfTFt4I3bbeFnEWeH0y-c24ZxM";
 const RANGE = "Form Responses 1";
 
-// Map Hebrew field names → Normalized keys (multiple options per field)
+// Map Hebrew field names → normalized keys (multiple options per field)
 const FIELD_MAP: Record<string, string[]> = {
   timestamp: ["timestamp"],
   submitter: ["מגיש הפנייה"],
@@ -22,20 +23,24 @@ const FIELD_MAP: Record<string, string[]> = {
 
 async function fetchComplaints() {
   try {
-    const apiKey = Deno.env.get("GOOGLE_JSON_KEY");
-    if (!apiKey) {
-      throw new Error("Google Sheets API key not configured");
-    }
+    const serviceAccountJson = Deno.env.get("GOOGLE_JSON_KEY");
+    if (!serviceAccountJson) throw new Error("Service account JSON not configured");
 
-    const url = `https://sheets.googleapis.com/v4/spreadsheets/${SHEET_ID}/values/${encodeURIComponent(RANGE)}?key=${apiKey}`;
+    const credentials = JSON.parse(serviceAccountJson);
 
-    const response = await fetch(url);
-    if (!response.ok) {
-      throw new Error(`Google Sheets API error: ${response.status}`);
-    }
+    const auth = new google.auth.GoogleAuth({
+      credentials,
+      scopes: ["https://www.googleapis.com/auth/spreadsheets.readonly"],
+    });
 
-    const data = await response.json();
-    const rows = data.values;
+    const sheets = google.sheets({ version: "v4", auth });
+
+    const response = await sheets.spreadsheets.values.get({
+      spreadsheetId: SHEET_ID,
+      range: RANGE,
+    });
+
+    const rows = response.data.values;
     if (!rows || rows.length === 0) return [];
 
     const headers = rows[0];
@@ -61,7 +66,7 @@ async function fetchComplaints() {
           const value = row[i] || "";
           if (value.trim() !== "") {
             entry[key] = value;
-            break; // take the first non-empty
+            break; // take first non-empty
           }
         }
       }
@@ -108,7 +113,6 @@ serve(async (req) => {
 
   try {
     const complaints = await fetchComplaints();
-
     return new Response(JSON.stringify(complaints), {
       headers: {
         "Content-Type": "application/json",
