@@ -2,7 +2,7 @@ import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
 
 // CONFIG
 const SHEET_ID = "175Cy5X6zNDaNAfDwK6HuuFZVFOQspDAweFTXgB-BoIk";
-const RANGE = "תגובות לתופס 1";
+const RANGE = "'תגובות לתופס 1'!A:Z";
 
 // Map Hebrew field names → Normalized keys (multiple options per field)
 const FIELD_MAP: Record<string, string[]> = {
