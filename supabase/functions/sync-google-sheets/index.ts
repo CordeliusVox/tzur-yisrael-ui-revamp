@@ -1,12 +1,12 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
 
 // CONFIG
-const SHEET_ID = "175Cy5X6zNDaNAfDwK6HuuFZVFOQspDAweFTXgB-BoIk";
-const RANGE = "'תגובות לתופס 1'!A:Z";
+const SHEET_ID = "1paz6Ox8TnSiBdct3TxfTFt4I3bbeFnEWeH0y-c24ZxM;
+const RANGE = "Form Responses 1";
 
 // Map Hebrew field names → Normalized keys (multiple options per field)
 const FIELD_MAP: Record<string, string[]> = {
-  timestamp: ["חותמת זמן"],
+  timestamp: ["timestamp"],
   submitter: ["מגיש הפנייה"],
   role: ["תפקיד"],
   department: ["מחלקה"],
@@ -22,7 +22,7 @@ const FIELD_MAP: Record<string, string[]> = {
 
 async function fetchComplaints() {
   try {
-    const apiKey = Deno.env.get("GOOGLE_SHEETS_API_KEY");
+    const apiKey = Deno.env.get("GOOGLE_JSON_KEY");
     if (!apiKey) {
       throw new Error("Google Sheets API key not configured");
     }
