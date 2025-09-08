@@ -1,11 +1,11 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
-import { google } from "https://cdn.jsdelivr.net/npm/googleapis@131.0.0/build/src/index.js";
+import { google } from "npm:googleapis@118.0.0";
 
 // CONFIG
 const SHEET_ID = "1paz6Ox8TnSiBdct3TxfTFt4I3bbeFnEWeH0y-c24ZxM";
 const RANGE = "Form Responses 1";
 
-// Map Hebrew field names → normalized keys (multiple options per field)
+// Map Hebrew field names → Normalized keys
 const FIELD_MAP: Record<string, string[]> = {
   timestamp: ["timestamp"],
   submitter: ["מגיש הפנייה"],
@@ -21,19 +21,19 @@ const FIELD_MAP: Record<string, string[]> = {
   email: ["כתובת אימייל"],
 };
 
+// Create Google Sheets client using service account JSON
+async function getSheetsClient() {
+  const credentials = JSON.parse(Deno.env.get("GOOGLE_JSON_KEY")!);
+  const auth = new google.auth.GoogleAuth({
+    credentials,
+    scopes: ["https://www.googleapis.com/auth/spreadsheets.readonly"],
+  });
+  return google.sheets({ version: "v4", auth });
+}
+
 async function fetchComplaints() {
   try {
-    const serviceAccountJson = Deno.env.get("GOOGLE_JSON_KEY");
-    if (!serviceAccountJson) throw new Error("Service account JSON not configured");
-
-    const credentials = JSON.parse(serviceAccountJson);
-
-    const auth = new google.auth.GoogleAuth({
-      credentials,
-      scopes: ["https://www.googleapis.com/auth/spreadsheets.readonly"],
-    });
-
-    const sheets = google.sheets({ version: "v4", auth });
+    const sheets = await getSheetsClient();
 
     const response = await sheets.spreadsheets.values.get({
       spreadsheetId: SHEET_ID,
@@ -46,7 +46,7 @@ async function fetchComplaints() {
     const headers = rows[0];
     const dataRows = rows.slice(1);
 
-    // Normalize headers → store all indices for each field
+    // Map headers → indices
     const headerIndices: Record<string, number[]> = {};
     for (let colIndex = 0; colIndex < headers.length; colIndex++) {
       const header = headers[colIndex];
