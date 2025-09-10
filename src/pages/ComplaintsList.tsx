@@ -64,10 +64,10 @@ export default function ComplaintsList() {
       const STORAGE_KEY = "complaints_v1";
       const complaintsForStorage = complaintsData.map((complaint: any) => ({
         id: complaint.id,
-        title: complaint.title,
+        title: complaint.title || "לא נמצא כותרת",
         submitter: complaint.submitter || complaint.name,
-        submitterEmail: complaint.email || "",
-        submitterPhone: complaint.phone || "",
+        submitterEmail: complaint.email || "לא נמצא אימייל",
+        submitterPhone: complaint.phone || "לא נמצא מספר טלפון",
         category: complaint.category,
         status: complaint.status,
         date: complaint.created_at,
