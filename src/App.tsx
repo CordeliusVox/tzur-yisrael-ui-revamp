@@ -3,12 +3,10 @@ import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
-import Auth from "./pages/Auth";
+import Login from "./pages/Login";
 import ComplaintsList from "./pages/ComplaintsList";
 import ComplaintDetail from "./pages/ComplaintDetail";
 import NotFound from "./pages/NotFound";
-import Settings from "./pages/Settings";
-import ProtectedRoute from "./components/ProtectedRoute";
 
 const queryClient = new QueryClient();
 
@@ -19,22 +17,9 @@ const App = () => (
       <Sonner />
       <BrowserRouter>
         <Routes>
-          <Route path="/" element={<Auth />} />
-          <Route path="/complaints" element={
-            <ProtectedRoute>
-              <ComplaintsList />
-            </ProtectedRoute>
-          } />
-          <Route path="/complaint/:id" element={
-            <ProtectedRoute>
-              <ComplaintDetail />
-            </ProtectedRoute>
-          } />
-          <Route path="/settings" element={
-            <ProtectedRoute>
-              <Settings />
-            </ProtectedRoute>
-          } />
+          <Route path="/" element={<Login />} />
+          <Route path="/complaints" element={<ComplaintsList />} />
+          <Route path="/complaint/:id" element={<ComplaintDetail />} />
           {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
           <Route path="*" element={<NotFound />} />
         </Routes>
