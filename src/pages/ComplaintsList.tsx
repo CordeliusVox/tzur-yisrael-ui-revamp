@@ -1,21 +1,48 @@
-import { useState, useEffect, useMemo } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Badge } from '@/components/ui/badge';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Pagination, PaginationContent, PaginationItem, PaginationLink, PaginationNext, PaginationPrevious } from '@/components/ui/pagination';
-import { useToast } from '@/hooks/use-toast';
-import { useAuth } from '@/hooks/useAuth';
-import { Settings, LogOut, Search, User } from 'lucide-react';
-import { getComplaintAge, getComplaintCardClass, sortComplaintsByPriority, formatTimeAgo, type ComplaintWithAge } from '@/utils/complaintUtils';
+import { useState, useEffect, useMemo } from "react";
+import { useNavigate } from "react-router-dom";
+import {
+  Card,
+  CardContent,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Badge } from "@/components/ui/badge";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
+  Pagination,
+  PaginationContent,
+  PaginationItem,
+  PaginationLink,
+  PaginationNext,
+  PaginationPrevious,
+} from "@/components/ui/pagination";
+import { useToast } from "@/hooks/use-toast";
+import { useAuth } from "@/hooks/useAuth";
+import { Settings, LogOut, Search, User } from "lucide-react";
+import {
+  getComplaintAge,
+  getComplaintCardClass,
+  sortComplaintsByPriority,
+  formatTimeAgo,
+  type ComplaintWithAge,
+} from "@/utils/complaintUtils";
+import { createClient } from "@supabase/supabase-js";
+
+const STORAGE_KEY = "complaints_v1";
 
 export default function ComplaintsList() {
   const [complaints, setComplaints] = useState<ComplaintWithAge[]>([]);
-  const [searchTerm, setSearchTerm] = useState('');
-  const [categoryFilter, setCategoryFilter] = useState('הכל');
-  const [statusFilter, setStatusFilter] = useState('הכל');
+  const [searchTerm, setSearchTerm] = useState("");
+  const [categoryFilter, setCategoryFilter] = useState("הכל");
+  const [statusFilter, setStatusFilter] = useState("הכל");
   const [currentPage, setCurrentPage] = useState(1);
   const [loading, setLoading] = useState(true);
 
@@ -24,20 +51,48 @@ export default function ComplaintsList() {
   const { toast } = useToast();
   const navigate = useNavigate();
 
+  // Create Supabase client for session
+  const supabase = useMemo(() => {
+    return createClient(
+      import.meta.env.VITE_SUPABASE_URL!,
+      import.meta.env.VITE_SUPABASE_ANON_KEY!
+    );
+  }, []);
+
   useEffect(() => {
     if (user) {
+      // Load immediately from localStorage
+      const saved = localStorage.getItem(STORAGE_KEY);
+      if (saved) {
+        try {
+          const parsed = JSON.parse(saved);
+          setComplaints(parsed);
+          setLoading(false);
+        } catch {
+          console.warn("Failed to parse cached complaints");
+        }
+      }
+
+      // Then refresh from server in background
       loadComplaints();
     }
   }, [user]);
 
   const loadComplaints = async () => {
-    setLoading(true);
     try {
+      setLoading(true);
+
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
+      if (!session) throw new Error("Not authenticated");
+
       const response = await fetch(
         "https://daxknkbmetzajmgdpniz.supabase.co/functions/v1/sync-google-sheets",
         {
           method: "GET",
           headers: {
+            Authorization: `Bearer ${session.access_token}`,
             "Content-Type": "application/json",
           },
         }
@@ -50,7 +105,10 @@ export default function ComplaintsList() {
       const complaintsData = await response.json();
 
       const complaintsWithAge = complaintsData.map((complaint: any) => {
-        const { age, daysOld } = getComplaintAge(complaint.created_at, complaint.status);
+        const { age, daysOld } = getComplaintAge(
+          complaint.created_at,
+          complaint.status
+        );
         return {
           ...complaint,
           age,
@@ -58,24 +116,11 @@ export default function ComplaintsList() {
           submitter_id: complaint.submitter_id || "external",
         };
       });
-      setComplaints(sortComplaintsByPriority(complaintsWithAge));
 
-      // Store locally for detail page
-      const STORAGE_KEY = "complaints_v1";
-      const complaintsForStorage = complaintsData.map((complaint: any) => ({
-        id: complaint.id,
-        title: complaint.title,
-        submitter: complaint.submitter || complaint.name,
-        submitterEmail: complaint.email || "",
-        submitterPhone: complaint.phone || "",
-        category: complaint.category,
-        status: complaint.status,
-        date: complaint.created_at,
-        description: complaint.details,
-        assignedTo: complaint.assigned_to,
-        updates: [],
-      }));
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(complaintsForStorage));
+      const sorted = sortComplaintsByPriority(complaintsWithAge);
+      setComplaints(sorted);
+
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(sorted));
     } catch (error) {
       console.error("Error loading complaints:", error);
       toast({
@@ -90,12 +135,15 @@ export default function ComplaintsList() {
 
   const filteredComplaints = useMemo(() => {
     return complaints.filter((complaint) => {
-      const description = complaint.description || (complaint as any).details || "";
+      const description =
+        complaint.description || (complaint as any).details || "";
       const matchesSearch =
         complaint.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
         description.toLowerCase().includes(searchTerm.toLowerCase());
-      const matchesCategory = categoryFilter === "הכל" || complaint.category === categoryFilter;
-      const matchesStatus = statusFilter === "הכל" || complaint.status === statusFilter;
+      const matchesCategory =
+        categoryFilter === "הכל" || complaint.category === categoryFilter;
+      const matchesStatus =
+        statusFilter === "הכל" || complaint.status === statusFilter;
       return matchesSearch && matchesCategory && matchesStatus;
     });
   }, [complaints, searchTerm, categoryFilter, statusFilter]);
@@ -129,13 +177,15 @@ export default function ComplaintsList() {
   const getStatusBadge = (status: string) => {
     const statusConfig = {
       "לא שויך": { variant: "secondary" as const, text: "לא שויך" },
-      "פתוח": { variant: "default" as const, text: "פתוח" },
-      "בטיפול": { variant: "default" as const, text: "בטיפול" },
-      "הושלם": { variant: "default" as const, text: "הושלם" },
-      "חדש": { variant: "default" as const, text: "חדש" },
+      פתוח: { variant: "default" as const, text: "פתוח" },
+      בטיפול: { variant: "default" as const, text: "בטיפול" },
+      הושלם: { variant: "default" as const, text: "הושלם" },
+      חדש: { variant: "default" as const, text: "חדש" },
     };
 
-    const config = statusConfig[status as keyof typeof statusConfig] || statusConfig["לא שויך"];
+    const config =
+      statusConfig[status as keyof typeof statusConfig] ||
+      statusConfig["לא שויך"];
     return <Badge variant={config.variant}>{config.text}</Badge>;
   };
 
@@ -144,7 +194,7 @@ export default function ComplaintsList() {
     return "משתמש אחר";
   };
 
-  if (loading) {
+  if (loading && complaints.length === 0) {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <div className="text-lg hebrew-body">טוען תלונות...</div>
@@ -230,7 +280,9 @@ export default function ComplaintsList() {
             <div className="col-span-full">
               <Card className="card-elegant">
                 <CardContent className="text-center py-12">
-                  <p className="text-muted-foreground hebrew-body">לא נמצאו תלונות</p>
+                  <p className="text-muted-foreground hebrew-body">
+                    לא נמצאו תלונות
+                  </p>
                 </CardContent>
               </Card>
             </div>
