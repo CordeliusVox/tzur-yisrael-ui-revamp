@@ -27,7 +27,7 @@ async function fetchComplaints() {
   try {
     console.log("Starting to fetch complaints from Google Sheets...");
 
-    const googleJsonKey = Deno.env.get("GOOGLE_JSON_KEY");
+    const googleJsonKey = Deno.env.get("GOOGLE_KEY");
     if (!googleJsonKey) {
       throw new Error("GOOGLE_JSON_KEY environment variable is not set");
     }
