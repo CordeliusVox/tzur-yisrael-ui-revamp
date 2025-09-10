@@ -1,261 +1,329 @@
-import { useState } from "react";
-import { useNavigate } from "react-router-dom";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
-import { Search, Filter, GraduationCap, LogOut, Eye, Calendar, User, FileText } from "lucide-react";
+import { useState, useEffect, useMemo } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Badge } from '@/components/ui/badge';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Pagination, PaginationContent, PaginationItem, PaginationLink, PaginationNext, PaginationPrevious } from '@/components/ui/pagination';
+import { useToast } from '@/hooks/use-toast';
+import { useAuth } from '@/hooks/useAuth';
+import { Settings, LogOut, Search, User } from 'lucide-react';
+import { getComplaintAge, getComplaintCardClass, sortComplaintsByPriority, formatTimeAgo, type ComplaintWithAge } from '@/utils/complaintUtils';
 
-// Mock data for complaints
-const mockComplaints = [
-  {
-    id: "1",
-    title: "בעיה עם הארוחות בקפטריה",
-    submitter: "יוסי כהן",
-    category: "שירותי מזון",
-    status: "פתוח",
-    date: "2024-01-15",
-    priority: "גבוה",
-    description: "איכות הארוחות ירודה וההמתנה ארוכה מדי..."
-  },
-  {
-    id: "2", 
-    title: "רעש בשעות הפסקה",
-    submitter: "מרים לוי",
-    category: "סביבת למידה",
-    status: "סגור",
-    date: "2024-01-12",
-    priority: "בינוני",
-    description: "רעש מופרז במסדרונות המפריע לשיעורים..."
-  },
-  {
-    id: "3",
-    title: "בעיות עם מערכת המחשבים",
-    submitter: "דוד אברהם",
-    category: "טכנולוגיה",
-    status: "פתוח",
-    date: "2024-01-10",
-    priority: "דחוף",
-    description: "מחשבים לא עובדים במעבדה..."
-  },
-  {
-    id: "4",
-    title: "חוסר ניקיון בחדרי השירותים",
-    submitter: "שרה מזרחי",
-    category: "ניקיון",
-    status: "פתוח", 
-    date: "2024-01-08",
-    priority: "גבוה",
-    description: "חדרי השירותים לא מנוקים כראוי..."
-  }
-];
 
-const ComplaintsList = () => {
-  const [complaints] = useState(mockComplaints);
-  const [searchTerm, setSearchTerm] = useState("");
-  const [categoryFilter, setCategoryFilter] = useState("הכל");
-  const [statusFilter, setStatusFilter] = useState("הכל");
+
+export default function ComplaintsList() {
+  const [complaints, setComplaints] = useState<ComplaintWithAge[]>([]);
+  const [searchTerm, setSearchTerm] = useState('');
+  const [categoryFilter, setCategoryFilter] = useState('הכל');
+  const [statusFilter, setStatusFilter] = useState('הכל');
+  const [currentPage, setCurrentPage] = useState(1);
+  const [loading, setLoading] = useState(true);
+  
+  const complaintsPerPage = 25;
+  const { user, signOut } = useAuth();
+  const { toast } = useToast();
   const navigate = useNavigate();
 
-  const filteredComplaints = complaints.filter(complaint => {
-    const matchesSearch = complaint.title.includes(searchTerm) || 
-                         complaint.submitter.includes(searchTerm) ||
-                         complaint.description.includes(searchTerm);
-    const matchesCategory = categoryFilter === "הכל" || complaint.category === categoryFilter;
-    const matchesStatus = statusFilter === "הכל" || complaint.status === statusFilter;
-    
-    return matchesSearch && matchesCategory && matchesStatus;
-  });
+  useEffect(() => {
+    if (user) {
+      loadComplaints();
+    }
+  }, [user]);
 
-  const handleLogout = () => {
-    navigate("/");
+  const loadComplaints = async () => {
+    setLoading(true);
+    try {
+      const response = await fetch('https://daxknkbmetzajmgdpniz.supabase.co/functions/v1/sync-google-sheets', {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      });
+      
+      if (!response.ok) {
+        throw new Error('Failed to fetch complaints');
+      }
+      
+      const complaintsData = await response.json();
+      
+      const complaintsWithAge = complaintsData.map((complaint: any) => {
+        const { age, daysOld } = getComplaintAge(complaint.created_at, complaint.status);
+        return { 
+          ...complaint, 
+          age, 
+          daysOld,
+          submitter_id: complaint.submitter_id || 'external'
+        };
+      });
+      setComplaints(sortComplaintsByPriority(complaintsWithAge));
+      
+      // Also save to localStorage so ComplaintDetail can access them
+      const STORAGE_KEY = "complaints_v1";
+      const complaintsForStorage = complaintsData.map((complaint: any) => ({
+        id: complaint.id,
+        title: complaint.title,
+        submitter: complaint.submitter || complaint.name,
+        submitterEmail: '',
+        submitterPhone: complaint.phone,
+        category: complaint.category,
+        status: complaint.status,
+        date: complaint.created_at,
+        description: complaint.details,
+        assignedTo: complaint.assigned_to,
+        updates: []
+      }));
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(complaintsForStorage));
+    } catch (error) {
+      console.error('Error loading complaints:', error);
+      toast({
+        title: "שגיאה",
+        description: "נכשל בטעינת התלונות",
+        variant: "destructive"
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const filteredComplaints = useMemo(() => {
+    return complaints.filter(complaint => {
+      const description = complaint.description || (complaint as any).details || '';
+      const matchesSearch = complaint.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        description.toLowerCase().includes(searchTerm.toLowerCase());
+      const matchesCategory = categoryFilter === 'הכל' || complaint.category === categoryFilter;
+      const matchesStatus = statusFilter === 'הכל' || complaint.status === statusFilter;
+      return matchesSearch && matchesCategory && matchesStatus;
+    });
+  }, [complaints, searchTerm, categoryFilter, statusFilter]);
+
+  const totalPages = Math.ceil(filteredComplaints.length / complaintsPerPage);
+  const paginatedComplaints = filteredComplaints.slice(
+    (currentPage - 1) * complaintsPerPage,
+    currentPage * complaintsPerPage
+  );
+
+  const handleClaim = (id: string) => {
+    const updatedComplaints = complaints.map(complaint => {
+      if (complaint.id === id && complaint.status === 'לא שויך') {
+        return {
+          ...complaint,
+          assigned_to: user?.id,
+          status: 'בטיפול' as const
+        };
+      }
+      return complaint;
+    });
+    
+    setComplaints(updatedComplaints);
+    
+    toast({
+      title: "התלונה נתפסה",
+      description: "התלונה הוקצתה אליך בהצלחה"
+    });
   };
 
   const getStatusBadge = (status: string) => {
-    if (status === "פתוח") {
-      return <Badge className="status-open">פתוח</Badge>;
-    }
-    return <Badge className="status-closed">סגור</Badge>;
+    const statusConfig = {
+      'לא שויך': { variant: 'secondary' as const, text: 'לא שויך' },
+      'פתוח': { variant: 'default' as const, text: 'פתוח' },
+      'בטיפול': { variant: 'default' as const, text: 'בטיפול' },
+      'הושלם': { variant: 'default' as const, text: 'הושלם' }
+    };
+
+    const config = statusConfig[status as keyof typeof statusConfig] || statusConfig['לא שויך'];
+    return <Badge variant={config.variant}>{config.text}</Badge>;
   };
 
-  const getPriorityColor = (priority: string) => {
-    switch (priority) {
-      case "דחוף": return "text-red-600 font-semibold";
-      case "גבוה": return "text-orange-600 font-medium";
-      case "בינוני": return "text-yellow-600";
-      default: return "text-muted-foreground";
-    }
+  const getUserDisplay = (userId: string) => {
+    if (userId === user?.id) return 'אתה';
+    return 'משתמש אחר';
   };
+
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="text-lg hebrew-body">טוען תלונות...</div>
+      </div>
+    );
+  }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-background to-muted rtl">
-      {/* Header */}
-      <header className="bg-white/80 backdrop-blur-sm border-b border-border sticky top-0 z-50">
-        <div className="max-w-7xl mx-auto px-4 py-4">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 bg-gradient-to-br from-primary to-primary-glow rounded-lg flex items-center justify-center">
-                <GraduationCap className="w-6 h-6 text-white" />
-              </div>
-              <div>
-                <h1 className="hebrew-title text-primary">מערכת ניהול פניות</h1>
-                <p className="text-sm text-muted-foreground">בית ספר יסודי הרצל</p>
+    <div className="min-h-screen bg-gradient-to-br from-background via-background to-muted p-4">
+      <div className="max-w-7xl mx-auto">
+        {/* Header */}
+        <Card className="card-elegant mb-6">
+          <CardHeader>
+            <div className="flex items-center justify-between">
+              <CardTitle className="text-3xl font-bold text-primary hebrew-title">
+                רשימת תלונות
+              </CardTitle>
+              <div className="flex gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => navigate('/settings')}
+                >
+                  <Settings className="h-4 w-4 ml-2" />
+                  הגדרות
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={signOut}
+                >
+                  <LogOut className="h-4 w-4 ml-2" />
+                  התנתק
+                </Button>
               </div>
             </div>
-            
-            <Button 
-              variant="outline" 
-              onClick={handleLogout}
-              className="flex items-center gap-2 rounded-xl hover:bg-destructive hover:text-destructive-foreground"
-            >
-              <LogOut className="w-4 h-4" />
-              יציאה
-            </Button>
-          </div>
-        </div>
-      </header>
-
-      <main className="max-w-7xl mx-auto px-4 py-8">
-        {/* Search and Filters */}
-        <Card className="card-elegant mb-8">
-          <CardHeader>
-            <CardTitle className="hebrew-subtitle flex items-center gap-2">
-              <Filter className="w-5 h-5" />
-              חיפוש וסינון פניות
-            </CardTitle>
-            <CardDescription className="hebrew-body">
-              מצאו פניות לפי נושא, מגיש או תוכן
-            </CardDescription>
           </CardHeader>
-          <CardContent>
+        </Card>
+
+        {/* Filters */}
+        <Card className="card-elegant mb-6">
+          <CardContent className="pt-6">
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              {/* Search */}
               <div className="relative">
-                <Search className="absolute right-3 top-1/2 transform -translate-y-1/2 text-muted-foreground w-4 h-4" />
+                <Search className="absolute right-3 top-1/2 transform -translate-y-1/2 text-muted-foreground h-4 w-4" />
                 <Input
-                  placeholder="חיפוש פניות..."
+                  placeholder="חפש תלונות..."
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
-                  className="pr-10 h-12 rounded-xl border-border focus:border-primary"
+                  className="pr-10 text-right"
                 />
               </div>
-
-              {/* Category Filter */}
+              
               <Select value={categoryFilter} onValueChange={setCategoryFilter}>
-                <SelectTrigger className="h-12 rounded-xl border-border focus:border-primary">
-                  <SelectValue placeholder="נושא הפנייה" />
+                <SelectTrigger>
+                  <SelectValue placeholder="בחר קטגוריה" />
                 </SelectTrigger>
-                <SelectContent className="rounded-xl">
-                  <SelectItem value="הכל">כל הנושאים</SelectItem>
-                  <SelectItem value="שירותי מזון">שירותי מזון</SelectItem>
-                  <SelectItem value="סביבת למידה">סביבת למידה</SelectItem>
-                  <SelectItem value="טכנולוגיה">טכנולוגיה</SelectItem>
+                <SelectContent>
+                  <SelectItem value="הכל">הכל</SelectItem>
+                  <SelectItem value="טכני">טכני</SelectItem>
                   <SelectItem value="ניקיון">ניקיון</SelectItem>
-                  <SelectItem value="תחבורה">תחבורה</SelectItem>
+                  <SelectItem value="בטיחות">בטיחות</SelectItem>
                   <SelectItem value="אחר">אחר</SelectItem>
                 </SelectContent>
               </Select>
 
-              {/* Status Filter */}
               <Select value={statusFilter} onValueChange={setStatusFilter}>
-                <SelectTrigger className="h-12 rounded-xl border-border focus:border-primary">
-                  <SelectValue placeholder="סטטוס" />
+                <SelectTrigger>
+                  <SelectValue placeholder="בחר סטטוס" />
                 </SelectTrigger>
-                <SelectContent className="rounded-xl">
-                  <SelectItem value="הכל">כל הסטטוסים</SelectItem>
+                <SelectContent>
+                  <SelectItem value="הכל">הכל</SelectItem>
+                  <SelectItem value="לא שויך">לא שויך</SelectItem>
                   <SelectItem value="פתוח">פתוח</SelectItem>
-                  <SelectItem value="סגור">סגור</SelectItem>
+                  <SelectItem value="בטיפול">בטיפול</SelectItem>
+                  <SelectItem value="הושלם">הושלם</SelectItem>
                 </SelectContent>
               </Select>
             </div>
           </CardContent>
         </Card>
 
-        {/* Results Header */}
-        <div className="flex items-center justify-between mb-6">
-          <h2 className="hebrew-subtitle text-foreground">
-            נמצאו {filteredComplaints.length} פניות
-          </h2>
-          <div className="text-sm text-muted-foreground">
-            מעודכן לאחרונה: {new Date().toLocaleDateString('he-IL')}
-          </div>
-        </div>
-
-        {/* Complaints Grid */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          {filteredComplaints.map((complaint) => (
-            <Card key={complaint.id} className="card-elegant cursor-pointer group">
-              <CardHeader className="pb-3">
-                <div className="flex items-start justify-between">
-                  <div className="flex-1">
-                    <CardTitle className="hebrew-subtitle text-lg mb-2 group-hover:text-primary transition-colors">
+        {/* Complaints List */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
+          {paginatedComplaints.length === 0 ? (
+            <div className="col-span-full">
+              <Card className="card-elegant">
+                <CardContent className="text-center py-12">
+                  <p className="text-muted-foreground hebrew-body">לא נמצאו תלונות</p>
+                </CardContent>
+              </Card>
+            </div>
+          ) : (
+            paginatedComplaints.map((complaint) => (
+              <Card 
+                key={complaint.id} 
+                className={`card-elegant cursor-pointer ${getComplaintCardClass(complaint.age)}`}
+                onClick={() => navigate(`/complaint/${complaint.id}`)}
+              >
+                <CardHeader className="pb-3">
+                  <div className="flex items-center justify-between">
+                    <CardTitle className="text-lg hebrew-subtitle line-clamp-1">
                       {complaint.title}
                     </CardTitle>
-                    <div className="flex items-center gap-4 text-sm text-muted-foreground">
-                      <div className="flex items-center gap-1">
-                        <User className="w-4 h-4" />
-                        {complaint.submitter}
-                      </div>
-                      <div className="flex items-center gap-1">
-                        <Calendar className="w-4 h-4" />
-                        {complaint.date}
-                      </div>
+                    <div className="flex gap-2" onClick={(e) => e.stopPropagation()}>
+                      {complaint.status === 'לא שויך' && (
+                        <Button
+                          size="sm"
+                          onClick={() => handleClaim(complaint.id)}
+                          className="btn-secondary"
+                        >
+                          תפוס
+                        </Button>
+                      )}
                     </div>
                   </div>
-                  {getStatusBadge(complaint.status)}
-                </div>
-              </CardHeader>
-              
-              <CardContent className="pt-0">
-                <div className="space-y-3">
-                  <div className="flex items-center justify-between text-sm">
-                    <span className="text-muted-foreground">קטגוריה:</span>
-                    <span className="font-medium">{complaint.category}</span>
+                  <div className="flex items-center gap-2">
+                    {getStatusBadge(complaint.status)}
+                    <Badge variant="outline">{complaint.category}</Badge>
                   </div>
+                </CardHeader>
+                
+                <CardContent className="pt-0">
+                   <p className="text-muted-foreground mb-4 hebrew-body line-clamp-3">
+                     {complaint.description || (complaint as any).details}
+                   </p>
                   
-                  <div className="flex items-center justify-between text-sm">
-                    <span className="text-muted-foreground">עדיפות:</span>
-                    <span className={getPriorityColor(complaint.priority)}>
-                      {complaint.priority}
-                    </span>
+                  <div className="space-y-2 text-sm text-muted-foreground">
+                    <div className="flex items-center gap-1">
+                      <User className="h-4 w-4" />
+                      <span>מגיש: {getUserDisplay(complaint.submitter_id)}</span>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <span>{formatTimeAgo(complaint.created_at)}</span>
+                      {complaint.assigned_to && (
+                        <span className="text-xs">מטופל על ידי: {getUserDisplay(complaint.assigned_to)}</span>
+                      )}
+                    </div>
                   </div>
-
-                  <div className="pt-2">
-                    <p className="text-sm text-muted-foreground line-clamp-2 hebrew-body">
-                      {complaint.description}
-                    </p>
-                  </div>
-
-                  <div className="pt-3 border-t border-border">
-                    <Button 
-                      onClick={() => navigate(`/complaint/${complaint.id}`)}
-                      className="w-full bg-gradient-to-l from-primary to-primary-glow hover:shadow-lg transition-all rounded-xl"
-                    >
-                      <Eye className="w-4 h-4 ml-2" />
-                      צפייה בפרטים
-                    </Button>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-          ))}
+                </CardContent>
+              </Card>
+            ))
+          )}
         </div>
 
-        {filteredComplaints.length === 0 && (
-          <Card className="card-elegant text-center py-12">
-            <CardContent>
-              <FileText className="w-16 h-16 text-muted-foreground mx-auto mb-4" />
-              <h3 className="hebrew-subtitle mb-2">לא נמצאו פניות</h3>
-              <p className="text-muted-foreground hebrew-body">
-                נסו לשנות את קריטריוני החיפוש או הסינון
-              </p>
-            </CardContent>
-          </Card>
+        {/* Pagination */}
+        {totalPages > 1 && (
+          <Pagination>
+            <PaginationContent>
+              {currentPage > 1 && (
+                <PaginationItem>
+                  <PaginationPrevious 
+                    onClick={() => setCurrentPage(currentPage - 1)}
+                    className="cursor-pointer"
+                  />
+                </PaginationItem>
+              )}
+              
+              {Array.from({ length: totalPages }, (_, i) => (
+                <PaginationItem key={i + 1}>
+                  <PaginationLink
+                    onClick={() => setCurrentPage(i + 1)}
+                    isActive={currentPage === i + 1}
+                    className="cursor-pointer"
+                  >
+                    {i + 1}
+                  </PaginationLink>
+                </PaginationItem>
+              ))}
+              
+              {currentPage < totalPages && (
+                <PaginationItem>
+                  <PaginationNext 
+                    onClick={() => setCurrentPage(currentPage + 1)}
+                    className="cursor-pointer"
+                  />
+                </PaginationItem>
+              )}
+            </PaginationContent>
+          </Pagination>
         )}
-      </main>
+      </div>
     </div>
   );
-};
-
-export default ComplaintsList;
+}
