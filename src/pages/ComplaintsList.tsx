@@ -187,7 +187,7 @@ export default function ComplaintsList() {
               <div className="relative">
                 <Search className="absolute right-3 top-1/2 transform -translate-y-1/2 text-muted-foreground h-4 w-4" />
                 <Input
-                  placeholder="חפש תלונות..."
+                  placeholder="חפש תלונות ..."
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
                   className="pr-10 text-right"
