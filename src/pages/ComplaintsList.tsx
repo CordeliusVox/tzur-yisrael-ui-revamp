@@ -11,8 +11,6 @@ import { useAuth } from '@/hooks/useAuth';
 import { Settings, LogOut, Search, User } from 'lucide-react';
 import { getComplaintAge, getComplaintCardClass, sortComplaintsByPriority, formatTimeAgo, type ComplaintWithAge } from '@/utils/complaintUtils';
 
-
-
 export default function ComplaintsList() {
   const [complaints, setComplaints] = useState<ComplaintWithAge[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
@@ -20,7 +18,7 @@ export default function ComplaintsList() {
   const [statusFilter, setStatusFilter] = useState('הכל');
   const [currentPage, setCurrentPage] = useState(1);
   const [loading, setLoading] = useState(true);
-  
+
   const complaintsPerPage = 25;
   const { user, signOut } = useAuth();
   const { toast } = useToast();
@@ -35,52 +33,55 @@ export default function ComplaintsList() {
   const loadComplaints = async () => {
     setLoading(true);
     try {
-      const response = await fetch('https://daxknkbmetzajmgdpniz.supabase.co/functions/v1/sync-google-sheets', {
-        method: 'GET',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-      });
-      
+      const response = await fetch(
+        "https://daxknkbmetzajmgdpniz.supabase.co/functions/v1/sync-google-sheets",
+        {
+          method: "GET",
+          headers: {
+            "Content-Type": "application/json",
+          },
+        }
+      );
+
       if (!response.ok) {
-        throw new Error('Failed to fetch complaints');
+        throw new Error("Failed to fetch complaints");
       }
-      
+
       const complaintsData = await response.json();
-      
+
       const complaintsWithAge = complaintsData.map((complaint: any) => {
         const { age, daysOld } = getComplaintAge(complaint.created_at, complaint.status);
-        return { 
-          ...complaint, 
-          age, 
+        return {
+          ...complaint,
+          age,
           daysOld,
-          submitter_id: complaint.submitter_id || 'external'
+          submitter_id: complaint.submitter_id || "external",
         };
       });
       setComplaints(sortComplaintsByPriority(complaintsWithAge));
-      
-      // Also save to localStorage so ComplaintDetail can access them
+
+      // Store locally for detail page
       const STORAGE_KEY = "complaints_v1";
       const complaintsForStorage = complaintsData.map((complaint: any) => ({
         id: complaint.id,
         title: complaint.title,
         submitter: complaint.submitter || complaint.name,
-        submitterEmail: '',
-        submitterPhone: complaint.phone,
+        submitterEmail: complaint.email || "",
+        submitterPhone: complaint.phone || "",
         category: complaint.category,
         status: complaint.status,
         date: complaint.created_at,
         description: complaint.details,
         assignedTo: complaint.assigned_to,
-        updates: []
+        updates: [],
       }));
       localStorage.setItem(STORAGE_KEY, JSON.stringify(complaintsForStorage));
     } catch (error) {
-      console.error('Error loading complaints:', error);
+      console.error("Error loading complaints:", error);
       toast({
         title: "שגיאה",
         description: "נכשל בטעינת התלונות",
-        variant: "destructive"
+        variant: "destructive",
       });
     } finally {
       setLoading(false);
@@ -88,12 +89,13 @@ export default function ComplaintsList() {
   };
 
   const filteredComplaints = useMemo(() => {
-    return complaints.filter(complaint => {
-      const description = complaint.description || (complaint as any).details || '';
-      const matchesSearch = complaint.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    return complaints.filter((complaint) => {
+      const description = complaint.description || (complaint as any).details || "";
+      const matchesSearch =
+        complaint.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
         description.toLowerCase().includes(searchTerm.toLowerCase());
-      const matchesCategory = categoryFilter === 'הכל' || complaint.category === categoryFilter;
-      const matchesStatus = statusFilter === 'הכל' || complaint.status === statusFilter;
+      const matchesCategory = categoryFilter === "הכל" || complaint.category === categoryFilter;
+      const matchesStatus = statusFilter === "הכל" || complaint.status === statusFilter;
       return matchesSearch && matchesCategory && matchesStatus;
     });
   }, [complaints, searchTerm, categoryFilter, statusFilter]);
@@ -105,40 +107,41 @@ export default function ComplaintsList() {
   );
 
   const handleClaim = (id: string) => {
-    const updatedComplaints = complaints.map(complaint => {
-      if (complaint.id === id && complaint.status === 'לא שויך') {
+    const updatedComplaints = complaints.map((complaint) => {
+      if (complaint.id === id && complaint.status === "לא שויך") {
         return {
           ...complaint,
           assigned_to: user?.id,
-          status: 'בטיפול' as const
+          status: "בטיפול" as const,
         };
       }
       return complaint;
     });
-    
+
     setComplaints(updatedComplaints);
-    
+
     toast({
       title: "התלונה נתפסה",
-      description: "התלונה הוקצתה אליך בהצלחה"
+      description: "התלונה הוקצתה אליך בהצלחה",
     });
   };
 
   const getStatusBadge = (status: string) => {
     const statusConfig = {
-      'לא שויך': { variant: 'secondary' as const, text: 'לא שויך' },
-      'פתוח': { variant: 'default' as const, text: 'פתוח' },
-      'בטיפול': { variant: 'default' as const, text: 'בטיפול' },
-      'הושלם': { variant: 'default' as const, text: 'הושלם' }
+      "לא שויך": { variant: "secondary" as const, text: "לא שויך" },
+      "פתוח": { variant: "default" as const, text: "פתוח" },
+      "בטיפול": { variant: "default" as const, text: "בטיפול" },
+      "הושלם": { variant: "default" as const, text: "הושלם" },
+      "חדש": { variant: "default" as const, text: "חדש" },
     };
 
-    const config = statusConfig[status as keyof typeof statusConfig] || statusConfig['לא שויך'];
+    const config = statusConfig[status as keyof typeof statusConfig] || statusConfig["לא שויך"];
     return <Badge variant={config.variant}>{config.text}</Badge>;
   };
 
   const getUserDisplay = (userId: string) => {
-    if (userId === user?.id) return 'אתה';
-    return 'משתמש אחר';
+    if (userId === user?.id) return "אתה";
+    return "משתמש אחר";
   };
 
   if (loading) {
@@ -163,16 +166,12 @@ export default function ComplaintsList() {
                 <Button
                   variant="outline"
                   size="sm"
-                  onClick={() => navigate('/settings')}
+                  onClick={() => navigate("/settings")}
                 >
                   <Settings className="h-4 w-4 ml-2" />
                   הגדרות
                 </Button>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={signOut}
-                >
+                <Button variant="outline" size="sm" onClick={signOut}>
                   <LogOut className="h-4 w-4 ml-2" />
                   התנתק
                 </Button>
@@ -194,7 +193,7 @@ export default function ComplaintsList() {
                   className="pr-10 text-right"
                 />
               </div>
-              
+
               <Select value={categoryFilter} onValueChange={setCategoryFilter}>
                 <SelectTrigger>
                   <SelectValue placeholder="בחר קטגוריה" />
@@ -218,6 +217,7 @@ export default function ComplaintsList() {
                   <SelectItem value="פתוח">פתוח</SelectItem>
                   <SelectItem value="בטיפול">בטיפול</SelectItem>
                   <SelectItem value="הושלם">הושלם</SelectItem>
+                  <SelectItem value="חדש">חדש</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -236,9 +236,11 @@ export default function ComplaintsList() {
             </div>
           ) : (
             paginatedComplaints.map((complaint) => (
-              <Card 
-                key={complaint.id} 
-                className={`card-elegant cursor-pointer ${getComplaintCardClass(complaint.age)}`}
+              <Card
+                key={complaint.id}
+                className={`card-elegant cursor-pointer ${getComplaintCardClass(
+                  complaint.age
+                )}`}
                 onClick={() => navigate(`/complaint/${complaint.id}`)}
               >
                 <CardHeader className="pb-3">
@@ -246,8 +248,11 @@ export default function ComplaintsList() {
                     <CardTitle className="text-lg hebrew-subtitle line-clamp-1">
                       {complaint.title}
                     </CardTitle>
-                    <div className="flex gap-2" onClick={(e) => e.stopPropagation()}>
-                      {complaint.status === 'לא שויך' && (
+                    <div
+                      className="flex gap-2"
+                      onClick={(e) => e.stopPropagation()}
+                    >
+                      {complaint.status === "לא שויך" && (
                         <Button
                           size="sm"
                           onClick={() => handleClaim(complaint.id)}
@@ -263,12 +268,12 @@ export default function ComplaintsList() {
                     <Badge variant="outline">{complaint.category}</Badge>
                   </div>
                 </CardHeader>
-                
+
                 <CardContent className="pt-0">
-                   <p className="text-muted-foreground mb-4 hebrew-body line-clamp-3">
-                     {complaint.description || (complaint as any).details}
-                   </p>
-                  
+                  <p className="text-muted-foreground mb-4 hebrew-body line-clamp-3">
+                    {complaint.description || (complaint as any).details}
+                  </p>
+
                   <div className="space-y-2 text-sm text-muted-foreground">
                     <div className="flex items-center gap-1">
                       <User className="h-4 w-4" />
@@ -277,7 +282,9 @@ export default function ComplaintsList() {
                     <div className="flex items-center justify-between">
                       <span>{formatTimeAgo(complaint.created_at)}</span>
                       {complaint.assigned_to && (
-                        <span className="text-xs">מטופל על ידי: {getUserDisplay(complaint.assigned_to)}</span>
+                        <span className="text-xs">
+                          מטופל על ידי: {getUserDisplay(complaint.assigned_to)}
+                        </span>
                       )}
                     </div>
                   </div>
@@ -293,13 +300,13 @@ export default function ComplaintsList() {
             <PaginationContent>
               {currentPage > 1 && (
                 <PaginationItem>
-                  <PaginationPrevious 
+                  <PaginationPrevious
                     onClick={() => setCurrentPage(currentPage - 1)}
                     className="cursor-pointer"
                   />
                 </PaginationItem>
               )}
-              
+
               {Array.from({ length: totalPages }, (_, i) => (
                 <PaginationItem key={i + 1}>
                   <PaginationLink
@@ -311,10 +318,10 @@ export default function ComplaintsList() {
                   </PaginationLink>
                 </PaginationItem>
               ))}
-              
+
               {currentPage < totalPages && (
                 <PaginationItem>
-                  <PaginationNext 
+                  <PaginationNext
                     onClick={() => setCurrentPage(currentPage + 1)}
                     className="cursor-pointer"
                   />
