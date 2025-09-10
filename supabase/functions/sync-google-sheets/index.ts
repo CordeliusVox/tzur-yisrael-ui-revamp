@@ -1,4 +1,5 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 import { google } from "npm:googleapis@118.0.0";
 
 // CONFIG
@@ -102,21 +103,68 @@ async function fetchComplaints() {
 
 // Serve HTTP requests
 serve(async (req) => {
+  const corsHeaders = {
+    'Access-Control-Allow-Origin': '*',
+    'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+  };
+
   if (req.method === "OPTIONS") {
-    return new Response("ok", {
-      headers: {
-        "Access-Control-Allow-Origin": "*",
-        "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
-        "Access-Control-Allow-Headers": "Content-Type, Authorization",
-      },
+    return new Response(null, { headers: corsHeaders });
+  }
+
+  // Verify authentication
+  const authHeader = req.headers.get('Authorization');
+  if (!authHeader) {
+    return new Response(JSON.stringify({ error: 'Missing Authorization header' }), {
+      status: 401,
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+    });
+  }
+
+  // Initialize Supabase client to verify JWT
+  const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
+  const supabaseKey = Deno.env.get('SUPABASE_ANON_KEY')!;
+  const supabase = createClient(supabaseUrl, supabaseKey, {
+    auth: { persistSession: false },
+    global: { headers: { Authorization: authHeader } }
+  });
+
+  // Verify user is authenticated
+  const { data: { user }, error } = await supabase.auth.getUser();
+  if (error || !user) {
+    return new Response(JSON.stringify({ error: 'Unauthorized' }), {
+      status: 401,
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+    });
+  }
+
+  // Check if user has admin or staff role
+  const { data: profile } = await supabase
+    .from('profiles')
+    .select('role')
+    .eq('user_id', user.id)
+    .single();
+
+  if (!profile || !['admin', 'staff'].includes(profile.role)) {
+    return new Response(JSON.stringify({ error: 'Insufficient permissions' }), {
+      status: 403,
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });
   }
 
   const complaints = await fetchComplaints();
-  return new Response(JSON.stringify(complaints), {
-    headers: {
-      "Content-Type": "application/json",
-      "Access-Control-Allow-Origin": "*",
-    },
+  
+  // Redact sensitive PII for non-admin users
+  const filteredComplaints = profile.role === 'admin' 
+    ? complaints 
+    : complaints.map(complaint => ({
+        ...complaint,
+        name: '[REDACTED]',
+        phone: '[REDACTED]',
+        email: '[REDACTED]'
+      }));
+
+  return new Response(JSON.stringify(filteredComplaints), {
+    headers: { ...corsHeaders, 'Content-Type': 'application/json' },
   });
 });
