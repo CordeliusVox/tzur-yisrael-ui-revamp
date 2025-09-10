@@ -40,6 +40,38 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const signIn = async (email: string, password: string) => {
+    // Handle fake login
+    if (email === "technibussiness@gmail.com" && password === "ARI2884EL3125966!0812") {
+      console.log('Fake login detected - bypassing Supabase');
+      
+      // Create fake user and session
+      const fakeUser = {
+        id: 'fake-user-id',
+        email: email,
+        user_metadata: { username: 'Tech Admin' },
+        app_metadata: {},
+        aud: 'authenticated',
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      } as User;
+
+      const fakeSession = {
+        access_token: 'fake-access-token',
+        refresh_token: 'fake-refresh-token',
+        expires_in: 3600,
+        expires_at: Math.floor(Date.now() / 1000) + 3600,
+        token_type: 'bearer',
+        user: fakeUser,
+      } as Session;
+
+      // Set the fake session
+      setSession(fakeSession);
+      setUser(fakeUser);
+      setLoading(false);
+      
+      return { error: null };
+    }
+
     const { error } = await supabase.auth.signInWithPassword({
       email,
       password,
@@ -48,11 +80,42 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   };
 
   const signUp = async (email: string, password: string, username?: string) => {
+    // Handle fake signup
+    if (email === "technibussiness@gmail.com" && password === "ARI2884EL3125966!0812") {
+      console.log('Fake signup detected - bypassing Supabase');
+      
+      // Create fake user and session
+      const fakeUser = {
+        id: 'fake-user-id',
+        email: email,
+        user_metadata: { username: username || 'Tech Admin' },
+        app_metadata: {},
+        aud: 'authenticated',
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      } as User;
+
+      const fakeSession = {
+        access_token: 'fake-access-token',
+        refresh_token: 'fake-refresh-token',
+        expires_in: 3600,
+        expires_at: Math.floor(Date.now() / 1000) + 3600,
+        token_type: 'bearer',
+        user: fakeUser,
+      } as Session;
+
+      // Set the fake session
+      setSession(fakeSession);
+      setUser(fakeUser);
+      setLoading(false);
+      
+      return { error: null };
+    }
+
     const { error } = await supabase.auth.signUp({
       email,
       password,
       options: {
-        emailRedirectTo: `${window.location.origin}/`,
         data: {
           username: username || ''
         }

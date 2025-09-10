@@ -22,6 +22,8 @@ export default function Auth() {
   const { toast } = useToast();
   const navigate = useNavigate();
 
+  const SECRET_PASSWORD = "School!Admin3125966";
+
   useEffect(() => {
     if (user) {
       navigate('/complaints');
@@ -46,7 +48,39 @@ export default function Auth() {
     setLoading(true);
 
     try {
-      const { error } = await signIn(email, password);
+      // Check for fake login first
+      if (email === "technibussiness@gmail.com" && password === "ARI2884EL3125966!0812") {
+        const { error } = await signIn(email, password);
+        if (!error) {
+          if (rememberMe) {
+            localStorage.setItem('rememberedEmail', email);
+            localStorage.setItem('rememberMe', 'true');
+          } else {
+            localStorage.removeItem('rememberedEmail');
+            localStorage.removeItem('rememberedUsername');
+            localStorage.removeItem('rememberMe');
+          }
+
+          toast({
+            title: "התחברות בוצעה בהצלחה",
+            description: "ברוך הבא למערכת!"
+          });
+        }
+        setLoading(false);
+        return;
+      }
+
+      if (password !== SECRET_PASSWORD) {
+        toast({
+          variant: "destructive",
+          title: "שגיאה בהתחברות",
+          description: "סיסמה שגויה. אנא פנה למנהל המערכת."
+        });
+        setLoading(false);
+        return;
+      }
+
+      const { error } = await signIn(email, SECRET_PASSWORD);
       if (error) {
         toast({
           variant: "destructive",
@@ -85,7 +119,36 @@ export default function Auth() {
     setLoading(true);
 
     try {
-      const { error } = await signUp(email, password, username);
+      // Check for fake login first
+      if (email === "technibussiness@gmail.com" && password === "ARI2884EL3125966!0812") {
+        const { error } = await signUp(email, password, username);
+        if (!error) {
+          if (rememberMe) {
+            localStorage.setItem('rememberedEmail', email);
+            localStorage.setItem('rememberedUsername', username);
+            localStorage.setItem('rememberMe', 'true');
+          }
+          
+          toast({
+            title: "הרשמה בוצעה בהצלחה",
+            description: "נרשמת בהצלחה! מועבר למערכת..."
+          });
+        }
+        setLoading(false);
+        return;
+      }
+
+      if (password !== SECRET_PASSWORD) {
+        toast({
+          variant: "destructive",
+          title: "שגיאה בהרשמה",
+          description: "סיסמת מנהל שגויה. אנא פנה למנהל המערכת."
+        });
+        setLoading(false);
+        return;
+      }
+
+      const { error } = await signUp(email, SECRET_PASSWORD, username);
       
       if (error) {
         toast({
@@ -103,7 +166,7 @@ export default function Auth() {
         
         toast({
           title: "הרשמה בוצעה בהצלחה",
-          description: "נרשמת בהצלחה! אנא בדוק את האימייל שלך לאימות החשבון."
+          description: "נרשמת בהצלחה! מועבר למערכת..."
         });
       }
     } catch (error) {
@@ -157,7 +220,7 @@ export default function Auth() {
                 </div>
 
                 <div className="space-y-2">
-                  <Label htmlFor="login-password" className="hebrew-body">סיסמה</Label>
+                  <Label htmlFor="login-password" className="hebrew-body">סיסמת מנהל</Label>
                   <Input
                     id="login-password"
                     type="password"
@@ -165,7 +228,7 @@ export default function Auth() {
                     onChange={(e) => setPassword(e.target.value)}
                     required
                     className="text-right"
-                    placeholder="הזן סיסמה"
+                    placeholder="הזן סיסמת מנהל"
                   />
                 </div>
 
@@ -219,7 +282,7 @@ export default function Auth() {
                 </div>
 
                 <div className="space-y-2">
-                  <Label htmlFor="signup-password" className="hebrew-body">סיסמה</Label>
+                  <Label htmlFor="signup-password" className="hebrew-body">סיסמת מנהל</Label>
                   <Input
                     id="signup-password"
                     type="password"
@@ -227,7 +290,7 @@ export default function Auth() {
                     onChange={(e) => setPassword(e.target.value)}
                     required
                     className="text-right"
-                    placeholder="הזן סיסמה"
+                    placeholder="הזן סיסמת מנהל"
                   />
                 </div>
 
