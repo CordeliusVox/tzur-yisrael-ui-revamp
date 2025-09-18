@@ -191,7 +191,7 @@ export default function Auth() {
                 בית הספר טכני ב"ש
               </CardTitle>
               <CardDescription className="text-muted-foreground hebrew-body">
-                מערכת תלונות
+                מערכת פניות לקוח
               </CardDescription>
             </div>
           </div>
