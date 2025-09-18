@@ -1,25 +1,23 @@
-import { useState, useEffect, useMemo } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Badge } from '@/components/ui/badge';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Pagination, PaginationContent, PaginationItem, PaginationLink, PaginationNext, PaginationPrevious } from '@/components/ui/pagination';
-import { useToast } from '@/hooks/use-toast';
-import { useAuth } from '@/hooks/useAuth';
-import { Settings, LogOut, Search, User } from 'lucide-react';
-import { getComplaintAge, getComplaintCardClass, sortComplaintsByPriority, formatTimeAgo, type ComplaintWithAge } from '@/utils/complaintUtils';
+import { useState, useEffect, useMemo } from "react";
+import { useNavigate } from "react-router-dom";
+import { FixedSizeList as List } from "react-window";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Badge } from "@/components/ui/badge";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { useToast } from "@/hooks/use-toast";
+import { useAuth } from "@/hooks/useAuth";
+import { Settings, LogOut, Search, User } from "lucide-react";
+import { getComplaintAge, getComplaintCardClass, sortComplaintsByPriority, formatTimeAgo, type ComplaintWithAge } from "@/utils/complaintUtils";
 
 export default function ComplaintsList() {
   const [complaints, setComplaints] = useState<ComplaintWithAge[]>([]);
-  const [searchTerm, setSearchTerm] = useState('');
-  const [categoryFilter, setCategoryFilter] = useState('הכל');
-  const [statusFilter, setStatusFilter] = useState('הכל');
-  const [currentPage, setCurrentPage] = useState(1);
+  const [searchTerm, setSearchTerm] = useState("");
+  const [categoryFilter, setCategoryFilter] = useState("הכל");
+  const [statusFilter, setStatusFilter] = useState("הכל");
   const [loading, setLoading] = useState(true);
 
-  const complaintsPerPage = 25;
   const { user, signOut } = useAuth();
   const { toast } = useToast();
   const navigate = useNavigate();
@@ -33,19 +31,12 @@ export default function ComplaintsList() {
   const loadComplaints = async () => {
     setLoading(true);
     try {
-      const response = await fetch(
-        "https://daxknkbmetzajmgdpniz.supabase.co/functions/v1/sync-google-sheets",
-        {
-          method: "GET",
-          headers: {
-            "Content-Type": "application/json",
-          },
-        }
-      );
+      const response = await fetch("https://your-backend-url.com", {
+        method: "GET",
+        headers: { "Content-Type": "application/json" },
+      });
 
-      if (!response.ok) {
-        throw new Error("Failed to fetch complaints");
-      }
+      if (!response.ok) throw new Error("Failed to fetch complaints");
 
       const complaintsData = await response.json();
 
@@ -58,24 +49,8 @@ export default function ComplaintsList() {
           submitter_id: complaint.submitter_id || "external",
         };
       });
-      setComplaints(sortComplaintsByPriority(complaintsWithAge));
 
-      // Store locally for detail page
-      const STORAGE_KEY = "complaints_v1";
-      const complaintsForStorage = complaintsData.map((complaint: any) => ({
-        id: complaint.id,
-        title: complaint.title || "לא נמצא כותרת",
-        submitter: complaint.submitter || complaint.name,
-        submitterEmail: complaint.email || "לא נמצא אימייל",
-        submitterPhone: complaint.phone || "לא נמצא מספר טלפון",
-        category: complaint.category,
-        status: complaint.status,
-        date: complaint.created_at,
-        description: complaint.details,
-        assignedTo: complaint.assigned_to,
-        updates: [],
-      }));
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(complaintsForStorage));
+      setComplaints(sortComplaintsByPriority(complaintsWithAge));
     } catch (error) {
       console.error("Error loading complaints:", error);
       toast({
@@ -100,25 +75,13 @@ export default function ComplaintsList() {
     });
   }, [complaints, searchTerm, categoryFilter, statusFilter]);
 
-  const totalPages = Math.ceil(filteredComplaints.length / complaintsPerPage);
-  const paginatedComplaints = filteredComplaints.slice(
-    (currentPage - 1) * complaintsPerPage,
-    currentPage * complaintsPerPage
-  );
-
   const handleClaim = (id: string) => {
-    const updatedComplaints = complaints.map((complaint) => {
-      if (complaint.id === id && complaint.status === "לא שויך") {
-        return {
-          ...complaint,
-          assigned_to: user?.id,
-          status: "בטיפול" as const,
-        };
-      }
-      return complaint;
-    });
-
-    setComplaints(updatedComplaints);
+    const updated = complaints.map((complaint) =>
+      complaint.id === id && complaint.status === "לא שויך"
+        ? { ...complaint, assigned_to: user?.id, status: "בטיפול" as const }
+        : complaint
+    );
+    setComplaints(updated);
 
     toast({
       title: "התלונה נתפסה",
@@ -134,7 +97,6 @@ export default function ComplaintsList() {
       "הושלם": { variant: "default" as const, text: "הושלם" },
       "חדש": { variant: "default" as const, text: "חדש" },
     };
-
     const config = statusConfig[status as keyof typeof statusConfig] || statusConfig["לא שויך"];
     return <Badge variant={config.variant}>{config.text}</Badge>;
   };
@@ -152,6 +114,57 @@ export default function ComplaintsList() {
     );
   }
 
+  const Row = ({ index, style }: { index: number; style: React.CSSProperties }) => {
+    const complaint = filteredComplaints[index];
+    return (
+      <div style={style}>
+        <Card
+          key={complaint.id}
+          className={`card-elegant cursor-pointer ${getComplaintCardClass(complaint.age)}`}
+          onClick={() => navigate(`/complaint/${complaint.id}`)}
+        >
+          <CardHeader className="pb-3">
+            <div className="flex items-center justify-between">
+              <CardTitle className="text-lg hebrew-subtitle line-clamp-1">
+                {complaint.title}
+              </CardTitle>
+              <div className="flex gap-2" onClick={(e) => e.stopPropagation()}>
+                {complaint.status === "לא שויך" && (
+                  <Button size="sm" onClick={() => handleClaim(complaint.id)} className="btn-secondary">
+                    תפוס
+                  </Button>
+                )}
+              </div>
+            </div>
+            <div className="flex items-center gap-2">
+              {getStatusBadge(complaint.status)}
+              <Badge variant="outline">{complaint.category}</Badge>
+            </div>
+          </CardHeader>
+
+          <CardContent className="pt-0">
+            <p className="text-muted-foreground mb-4 hebrew-body line-clamp-3">
+              {complaint.description || (complaint as any).details}
+            </p>
+
+            <div className="space-y-2 text-sm text-muted-foreground">
+              <div className="flex items-center gap-1">
+                <User className="h-4 w-4" />
+                <span>מגיש: {getUserDisplay(complaint.submitter_id)}</span>
+              </div>
+              <div className="flex items-center justify-between">
+                <span>{formatTimeAgo(complaint.created_at)}</span>
+                {complaint.assigned_to && (
+                  <span className="text-xs">מטופל על ידי: {getUserDisplay(complaint.assigned_to)}</span>
+                )}
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  };
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-background via-background to-muted p-4">
       <div className="max-w-7xl mx-auto">
@@ -159,15 +172,9 @@ export default function ComplaintsList() {
         <Card className="card-elegant mb-6">
           <CardHeader>
             <div className="flex items-center justify-between">
-              <CardTitle className="text-3xl font-bold text-primary hebrew-title">
-                רשימת תלונות
-              </CardTitle>
+              <CardTitle className="text-3xl font-bold text-primary hebrew-title">רשימת תלונות</CardTitle>
               <div className="flex gap-2">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => navigate("/settings")}
-                >
+                <Button variant="outline" size="sm" onClick={() => navigate("/settings")}>
                   <Settings className="h-4 w-4 ml-2" />
                   הגדרות
                 </Button>
@@ -224,112 +231,16 @@ export default function ComplaintsList() {
           </CardContent>
         </Card>
 
-        {/* Complaints List */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
-          {paginatedComplaints.length === 0 ? (
-            <div className="col-span-full">
-              <Card className="card-elegant">
-                <CardContent className="text-center py-12">
-                  <p className="text-muted-foreground hebrew-body">לא נמצאו תלונות</p>
-                </CardContent>
-              </Card>
-            </div>
-          ) : (
-            paginatedComplaints.map((complaint) => (
-              <Card
-                key={complaint.id}
-                className={`card-elegant cursor-pointer ${getComplaintCardClass(
-                  complaint.age
-                )}`}
-                onClick={() => navigate(`/complaint/${complaint.id}`)}
-              >
-                <CardHeader className="pb-3">
-                  <div className="flex items-center justify-between">
-                    <CardTitle className="text-lg hebrew-subtitle line-clamp-1">
-                      {complaint.title}
-                    </CardTitle>
-                    <div
-                      className="flex gap-2"
-                      onClick={(e) => e.stopPropagation()}
-                    >
-                      {complaint.status === "לא שויך" && (
-                        <Button
-                          size="sm"
-                          onClick={() => handleClaim(complaint.id)}
-                          className="btn-secondary"
-                        >
-                          תפוס
-                        </Button>
-                      )}
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    {getStatusBadge(complaint.status)}
-                    <Badge variant="outline">{complaint.category}</Badge>
-                  </div>
-                </CardHeader>
-
-                <CardContent className="pt-0">
-                  <p className="text-muted-foreground mb-4 hebrew-body line-clamp-3">
-                    {complaint.description || (complaint as any).details}
-                  </p>
-
-                  <div className="space-y-2 text-sm text-muted-foreground">
-                    <div className="flex items-center gap-1">
-                      <User className="h-4 w-4" />
-                      <span>מגיש: {getUserDisplay(complaint.submitter_id)}</span>
-                    </div>
-                    <div className="flex items-center justify-between">
-                      <span>{formatTimeAgo(complaint.created_at)}</span>
-                      {complaint.assigned_to && (
-                        <span className="text-xs">
-                          מטופל על ידי: {getUserDisplay(complaint.assigned_to)}
-                        </span>
-                      )}
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-            ))
-          )}
-        </div>
-
-        {/* Pagination */}
-        {totalPages > 1 && (
-          <Pagination>
-            <PaginationContent>
-              {currentPage > 1 && (
-                <PaginationItem>
-                  <PaginationPrevious
-                    onClick={() => setCurrentPage(currentPage - 1)}
-                    className="cursor-pointer"
-                  />
-                </PaginationItem>
-              )}
-
-              {Array.from({ length: totalPages }, (_, i) => (
-                <PaginationItem key={i + 1}>
-                  <PaginationLink
-                    onClick={() => setCurrentPage(i + 1)}
-                    isActive={currentPage === i + 1}
-                    className="cursor-pointer"
-                  >
-                    {i + 1}
-                  </PaginationLink>
-                </PaginationItem>
-              ))}
-
-              {currentPage < totalPages && (
-                <PaginationItem>
-                  <PaginationNext
-                    onClick={() => setCurrentPage(currentPage + 1)}
-                    className="cursor-pointer"
-                  />
-                </PaginationItem>
-              )}
-            </PaginationContent>
-          </Pagination>
-        )}
+        {/* Virtualized Complaints List */}
+        <List
+          height={600}
+          itemCount={filteredComplaints.length}
+          itemSize={250}
+          width="100%"
+          className="mb-6"
+        >
+          {Row}
+        </List>
       </div>
     </div>
   );
