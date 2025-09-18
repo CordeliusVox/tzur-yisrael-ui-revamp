@@ -191,7 +191,7 @@ export default function Auth() {
                 בית הספר טכני ב"ש
               </CardTitle>
               <CardDescription className="text-muted-foreground hebrew-body">
-                מערכת תלונות
+                מערכת פניות
               </CardDescription>
             </div>
           </div>
@@ -229,17 +229,6 @@ export default function Auth() {
                     required
                     className="text-right"
                     placeholder="הזן סיסמת מנהל"
-                  />
-                </div>
-
-                <div className="flex items-center gap-2 flex-row-reverse">
-                  <label htmlFor="remember-login" className="text-sm hebrew-body cursor-pointer">
-                    זכור אותי
-                  </label>
-                  <Checkbox
-                    id="remember-login"
-                    checked={rememberMe}
-                    onCheckedChange={(checked) => setRememberMe(checked as boolean)}
                   />
                 </div>
 
