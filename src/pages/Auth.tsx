@@ -232,17 +232,6 @@ export default function Auth() {
                   />
                 </div>
 
-                <div className="flex items-center gap-2 flex-row-reverse">
-                  <label htmlFor="remember-login" className="text-sm hebrew-body cursor-pointer">
-                    זכור אותי
-                  </label>
-                  <Checkbox
-                    id="remember-login"
-                    checked={rememberMe}
-                    onCheckedChange={(checked) => setRememberMe(checked as boolean)}
-                  />
-                </div>
-
                 <Button
                   type="submit"
                   className="w-full btn-school"
