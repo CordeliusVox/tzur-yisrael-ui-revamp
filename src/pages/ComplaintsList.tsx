@@ -8,7 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Pagination, PaginationContent, PaginationItem, PaginationLink, PaginationNext, PaginationPrevious } from '@/components/ui/pagination';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/hooks/useAuth';
-import { Settings, LogOut, Search, User, RefreshCw } from 'lucide-react';
+import { Settings, LogOut, Search, User, RefreshCw, Calendar, Tag } from 'lucide-react';
 import { getComplaintAge, getComplaintCardClass, sortComplaintsByPriority, formatTimeAgo, type ComplaintWithAge } from '@/utils/complaintUtils';
 
 // Local storage keys
@@ -16,6 +16,25 @@ const STORAGE_KEY = "complaints_v1";
 const CACHE_KEY = "complaints_cache";
 const CACHE_TIMESTAMP_KEY = "complaints_cache_timestamp";
 const CACHE_DURATION = 5 * 60 * 1000; // 5 minutes
+
+// Updated status options (only 3 statuses)
+const STATUS_OPTIONS = ['לא שויך', 'בטיפול', 'הושלם'] as const;
+
+// Updated category options
+const CATEGORY_OPTIONS = [
+  'פדגוגיה',
+  'מחשוב', 
+  'יחס ממפקדים',
+  'יחס ממורים',
+  'תשתיות',
+  'ביטחון אישי',
+  'משמעת',
+  'חדר אוכל',
+  'אפסנאות',
+  'מרכז משאבים',
+  'משרד רישום',
+  'אחר'
+] as const;
 
 export default function ComplaintsList() {
   const [complaints, setComplaints] = useState<ComplaintWithAge[]>([]);
@@ -45,6 +64,56 @@ export default function ComplaintsList() {
       }
     };
   }, [user]);
+
+  // Normalize status to one of the 3 allowed statuses
+  const normalizeStatus = (status: string): typeof STATUS_OPTIONS[number] => {
+    const lowerStatus = status.toLowerCase();
+    if (lowerStatus.includes('בטיפול') || lowerStatus.includes('פתוח') || lowerStatus.includes('claimed')) {
+      return 'בטיפול';
+    }
+    if (lowerStatus.includes('הושלם') || lowerStatus.includes('completed') || lowerStatus.includes('סגור')) {
+      return 'הושלם';
+    }
+    return 'לא שויך'; // Default for new/unclaimed/uncompleted
+  };
+
+  // Normalize category to one of the allowed categories
+  const normalizeCategory = (category: string): typeof CATEGORY_OPTIONS[number] => {
+    if (!category) return 'אחר';
+    
+    const categoryMap: Record<string, typeof CATEGORY_OPTIONS[number]> = {
+      'טכני': 'מחשוב',
+      'ניקיון': 'תשתיות',
+      'בטיחות': 'ביטחון אישי',
+      'pedagogy': 'פדגוגיה',
+      'computing': 'מחשוב',
+      'commanders': 'יחס ממפקדים',
+      'teachers': 'יחס ממורים',
+      'infrastructure': 'תשתיות',
+      'security': 'ביטחון אישי',
+      'discipline': 'משמעת',
+      'dining': 'חדר אוכל',
+      'supplies': 'אפסנאות',
+      'resources': 'מרכז משאבים',
+      'registration': 'משרד רישום'
+    };
+
+    const lowerCategory = category.toLowerCase();
+    
+    // Check direct matches first
+    if (CATEGORY_OPTIONS.includes(category as any)) {
+      return category as typeof CATEGORY_OPTIONS[number];
+    }
+    
+    // Check mapping
+    for (const [key, value] of Object.entries(categoryMap)) {
+      if (lowerCategory.includes(key)) {
+        return value;
+      }
+    }
+    
+    return 'אחר'; // Default for unrecognized categories
+  };
 
   // Load from cache first, then fetch if needed
   const loadComplaintsWithCache = async () => {
@@ -76,7 +145,13 @@ export default function ComplaintsList() {
         const parsedData = JSON.parse(cached);
         return parsedData.map((complaint: any) => {
           const { age, daysOld } = getComplaintAge(complaint.created_at, complaint.status);
-          return { ...complaint, age, daysOld };
+          return { 
+            ...complaint, 
+            age, 
+            daysOld,
+            status: normalizeStatus(complaint.status),
+            category: normalizeCategory(complaint.category)
+          };
         });
       }
     } catch (error) {
@@ -185,9 +260,14 @@ export default function ComplaintsList() {
 
   const processComplaints = (complaintsData: any[]): ComplaintWithAge[] => {
     const complaintsWithAge = complaintsData.map((complaint: any) => {
-      const { age, daysOld } = getComplaintAge(complaint.created_at, complaint.status);
+      const normalizedStatus = normalizeStatus(complaint.status);
+      const normalizedCategory = normalizeCategory(complaint.category);
+      const { age, daysOld } = getComplaintAge(complaint.created_at, normalizedStatus);
+      
       return {
         ...complaint,
+        status: normalizedStatus,
+        category: normalizedCategory,
         age,
         daysOld,
         submitter_id: complaint.submitter_id || "external",
@@ -203,8 +283,8 @@ export default function ComplaintsList() {
       submitter: complaint.submitter || complaint.name,
       submitterEmail: complaint.email || "לא נמצא אימייל",
       submitterPhone: complaint.phone || "לא נמצא מספר טלפון",
-      category: complaint.category,
-      status: complaint.status,
+      category: normalizeCategory(complaint.category),
+      status: normalizeStatus(complaint.status),
       date: complaint.created_at,
       description: complaint.details,
       assignedTo: complaint.assigned_to,
@@ -294,20 +374,38 @@ export default function ComplaintsList() {
 
   const getStatusBadge = (status: string) => {
     const statusConfig = {
-      "לא שויך": { variant: "secondary" as const, text: "לא שויך" },
-      "פתוח": { variant: "default" as const, text: "פתוח" },
-      "בטיפול": { variant: "default" as const, text: "בטיפול" },
-      "הושלם": { variant: "default" as const, text: "הושלם" },
-      "חדש": { variant: "default" as const, text: "חדש" },
+      "לא שויך": { variant: "secondary" as const, text: "לא שויך", color: "bg-red-100 text-red-800" },
+      "בטיפול": { variant: "default" as const, text: "בטיפול", color: "bg-yellow-100 text-yellow-800" },
+      "הושלם": { variant: "default" as const, text: "הושלם", color: "bg-green-100 text-green-800" },
     };
 
     const config = statusConfig[status as keyof typeof statusConfig] || statusConfig["לא שויך"];
-    return <Badge variant={config.variant}>{config.text}</Badge>;
+    return (
+      <Badge variant={config.variant} className={config.color}>
+        {config.text}
+      </Badge>
+    );
+  };
+
+  const getCategoryIcon = (category: string) => {
+    const iconMap: Record<string, JSX.Element> = {
+      'פדגוגיה': <User className="h-3 w-3" />,
+      'מחשוב': <Settings className="h-3 w-3" />,
+      'תשתיות': <Settings className="h-3 w-3" />,
+      'ביטחון אישי': <Settings className="h-3 w-3" />
+    };
+    
+    return iconMap[category] || <Tag className="h-3 w-3" />;
   };
 
   const getUserDisplay = (userId: string) => {
     if (userId === user?.id) return "אתה";
     return "משתמש אחר";
+  };
+
+  const truncateText = (text: string, maxLength: number = 50): string => {
+    if (!text) return "";
+    return text.length > maxLength ? text.substring(0, maxLength) + "..." : text;
   };
 
   // Show minimal loading UI only on initial load
@@ -330,7 +428,7 @@ export default function ComplaintsList() {
           <CardHeader>
             <div className="flex items-center justify-between">
               <CardTitle className="text-3xl font-bold text-primary hebrew-title">
-                רשימת תלונות
+                רשימת פניות
               </CardTitle>
               <div className="flex gap-2">
                 <Button
@@ -379,10 +477,11 @@ export default function ComplaintsList() {
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="הכל">הכל</SelectItem>
-                  <SelectItem value="טכני">טכני</SelectItem>
-                  <SelectItem value="ניקיון">ניקיון</SelectItem>
-                  <SelectItem value="בטיחות">בטיחות</SelectItem>
-                  <SelectItem value="אחר">אחר</SelectItem>
+                  {CATEGORY_OPTIONS.map(category => (
+                    <SelectItem key={category} value={category}>
+                      {category}
+                    </SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
 
@@ -392,11 +491,11 @@ export default function ComplaintsList() {
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="הכל">הכל</SelectItem>
-                  <SelectItem value="לא שויך">לא שויך</SelectItem>
-                  <SelectItem value="פתוח">פתוח</SelectItem>
-                  <SelectItem value="בטיפול">בטיפול</SelectItem>
-                  <SelectItem value="הושלם">הושלם</SelectItem>
-                  <SelectItem value="חדש">חדש</SelectItem>
+                  {STATUS_OPTIONS.map(status => (
+                    <SelectItem key={status} value={status}>
+                      {status}
+                    </SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
             </div>
@@ -423,12 +522,20 @@ export default function ComplaintsList() {
                 onClick={() => navigate(`/complaint/${complaint.id}`)}
               >
                 <CardHeader className="pb-3">
-                  <div className="flex items-center justify-between">
-                    <CardTitle className="text-lg hebrew-subtitle line-clamp-1">
-                      {complaint.title}
-                    </CardTitle>
+                  <div className="flex items-start justify-between gap-4">
+                    <div className="flex-1 min-w-0">
+                      <CardTitle className="text-lg hebrew-subtitle line-clamp-2 mb-2">
+                        {complaint.title || "כותרת לא נמצאה"}
+                      </CardTitle>
+                      <div className="flex items-center gap-2 mb-2">
+                        <User className="h-4 w-4 text-muted-foreground" />
+                        <span className="text-sm text-muted-foreground">
+                          {complaint.submitter || complaint.name || "מגיש לא ידוע"}
+                        </span>
+                      </div>
+                    </div>
                     <div
-                      className="flex gap-2"
+                      className="flex gap-2 flex-shrink-0"
                       onClick={(e) => e.stopPropagation()}
                     >
                       {complaint.status === "לא שויך" && (
@@ -442,30 +549,40 @@ export default function ComplaintsList() {
                       )}
                     </div>
                   </div>
-                  <div className="flex items-center gap-2">
+                  
+                  <div className="flex flex-wrap items-center gap-2">
                     {getStatusBadge(complaint.status)}
-                    <Badge variant="outline">{complaint.category}</Badge>
+                    <Badge variant="outline" className="flex items-center gap-1">
+                      {getCategoryIcon(complaint.category)}
+                      {complaint.category}
+                    </Badge>
                   </div>
                 </CardHeader>
 
                 <CardContent className="pt-0">
-                  <p className="text-muted-foreground mb-4 hebrew-body line-clamp-3">
-                    {complaint.description || (complaint as any).details}
+                  <p className="text-muted-foreground mb-4 hebrew-body line-clamp-2">
+                    {truncateText(complaint.description || (complaint as any).details || "אין תיאור זמין", 100)}
                   </p>
 
                   <div className="space-y-2 text-sm text-muted-foreground">
-                    <div className="flex items-center gap-1">
-                      <User className="h-4 w-4" />
-                      <span>מגיש: {getUserDisplay(complaint.submitter_id)}</span>
-                    </div>
                     <div className="flex items-center justify-between">
-                      <span>{formatTimeAgo(complaint.created_at)}</span>
+                      <div className="flex items-center gap-1">
+                        <Calendar className="h-4 w-4" />
+                        <span>{formatTimeAgo(complaint.created_at)}</span>
+                      </div>
                       {complaint.assigned_to && (
                         <span className="text-xs">
                           מטופל על ידי: {getUserDisplay(complaint.assigned_to)}
                         </span>
                       )}
                     </div>
+                    {complaint.daysOld !== undefined && (
+                      <div className="text-xs">
+                        <span className={complaint.daysOld > 7 ? "text-red-600 font-medium" : ""}>
+                          {complaint.daysOld} ימים מאז הגשה
+                        </span>
+                      </div>
+                    )}
                   </div>
                 </CardContent>
               </Card>
