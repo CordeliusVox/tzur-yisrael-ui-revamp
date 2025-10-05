@@ -4,6 +4,7 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import Auth from "./pages/Auth";
+import OwnerPanel from "./pages/OwnerPanel";
 import ComplaintsList from "./pages/ComplaintsList";
 import ComplaintDetail from "./pages/ComplaintDetail";
 import NotFound from "./pages/NotFound";
@@ -20,6 +21,7 @@ const App = () => (
       <BrowserRouter>
         <Routes>
           <Route path="/" element={<Auth />} />
+          <Route path="/owner-panel" element={<OwnerPanel />} />
           <Route path="/complaints" element={
             <ProtectedRoute>
               <ComplaintsList />

@@ -280,7 +280,7 @@ export default function ComplaintsList() {
     const complaintsForStorage = complaintsData.map((complaint: any) => ({
       id: complaint.id,
       title: complaint.title || "לא נמצא כותרת",
-      submitter: complaint.submitter || complaint.name,
+      submitter: complaint.name || "לא ידוע",
       submitterEmail: complaint.email || "לא נמצא אימייל",
       submitterPhone: complaint.phone || "לא נמצא מספר טלפון",
       category: normalizeCategory(complaint.category),
@@ -530,7 +530,7 @@ export default function ComplaintsList() {
                       <div className="flex items-center gap-2 mb-2">
                         <User className="h-4 w-4 text-muted-foreground" />
                         <span className="text-sm text-muted-foreground">
-                          {complaint.submitter || complaint.name || "מגיש לא ידוע"}
+                          {(complaint as any).name || "מגיש לא ידוע"}
                         </span>
                       </div>
                     </div>
