@@ -100,9 +100,13 @@ Deno.serve(async (req) => {
         )
       }
 
+      // Generate a UUID for the new profile
+      const newUserId = crypto.randomUUID()
+
       const { data: newProfile, error } = await supabase
         .from('profiles')
         .insert({
+          user_id: newUserId,
           username: accountData.name,
           email: accountData.email
         })
