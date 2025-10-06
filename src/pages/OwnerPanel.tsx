@@ -23,7 +23,6 @@ export default function OwnerPanel() {
   const [loading, setLoading] = useState(true);
   const [newAccountName, setNewAccountName] = useState('');
   const [newAccountEmail, setNewAccountEmail] = useState('');
-  const [newAccountRole, setNewAccountRole] = useState('user');
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
   const { toast } = useToast();
   const navigate = useNavigate();
@@ -94,7 +93,6 @@ export default function OwnerPanel() {
             accountData: {
               name: newAccountName,
               email: newAccountEmail,
-              role: newAccountRole,
             },
           }),
         }
@@ -108,7 +106,6 @@ export default function OwnerPanel() {
         });
         setNewAccountName('');
         setNewAccountEmail('');
-        setNewAccountRole('user');
         setIsAddDialogOpen(false);
         loadAccounts();
       } else {
@@ -244,19 +241,6 @@ export default function OwnerPanel() {
                         placeholder="email@example.com"
                       />
                     </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="role" className="hebrew-body">תפקיד</Label>
-                      <Select value={newAccountRole} onValueChange={setNewAccountRole}>
-                        <SelectTrigger>
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="user">משתמש</SelectItem>
-                          <SelectItem value="staff">צוות</SelectItem>
-                          <SelectItem value="admin">מנהל</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
                     <Button onClick={handleAddAccount} className="w-full btn-school">
                       צור חשבון
                     </Button>
@@ -281,7 +265,6 @@ export default function OwnerPanel() {
                     <TableRow>
                       <TableHead className="text-right hebrew-body">שם</TableHead>
                       <TableHead className="text-right hebrew-body">אימייל</TableHead>
-                      <TableHead className="text-right hebrew-body">תפקיד</TableHead>
                       <TableHead className="text-right hebrew-body">תאריך יצירה</TableHead>
                       <TableHead className="text-left">פעולות</TableHead>
                     </TableRow>
@@ -291,7 +274,6 @@ export default function OwnerPanel() {
                       <TableRow key={account.id}>
                         <TableCell className="font-medium hebrew-body">{account.username}</TableCell>
                         <TableCell className="hebrew-body">{account.email}</TableCell>
-                        <TableCell className="hebrew-body">{account.role || 'user'}</TableCell>
                         <TableCell className="hebrew-body">
                           {new Date(account.created_at).toLocaleDateString('he-IL')}
                         </TableCell>

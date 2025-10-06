@@ -104,8 +104,7 @@ Deno.serve(async (req) => {
         .from('profiles')
         .insert({
           username: accountData.name,
-          email: accountData.email,
-          role: accountData.role || 'user'
+          email: accountData.email
         })
         .select()
         .single()
