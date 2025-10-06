@@ -20,24 +20,11 @@ const CACHE_DURATION = 5 * 60 * 1000; // 5 minutes
 // Updated status options (only 3 statuses)
 const STATUS_OPTIONS = ['לא שויך', 'בטיפול', 'הושלם'] as const;
 
-// Updated category options
-const CATEGORY_OPTIONS = [
-  'פדגוגיה',
-  'מחשוב', 
-  'יחס ממפקדים',
-  'יחס ממורים',
-  'תשתיות',
-  'ביטחון אישי',
-  'משמעת',
-  'חדר אוכל',
-  'אפסנאות',
-  'מרכז משאבים',
-  'משרד רישום',
-  'אחר'
-] as const;
+// Categories will be loaded from database
 
 export default function ComplaintsList() {
   const [complaints, setComplaints] = useState<ComplaintWithAge[]>([]);
+  const [categories, setCategories] = useState<string[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [categoryFilter, setCategoryFilter] = useState('הכל');
   const [statusFilter, setStatusFilter] = useState('הכל');
@@ -50,6 +37,26 @@ export default function ComplaintsList() {
   const { toast } = useToast();
   const navigate = useNavigate();
   const abortControllerRef = useRef<AbortController | null>(null);
+
+  // Load categories from database
+  useEffect(() => {
+    const loadCategories = async () => {
+      try {
+        const { supabase } = await import('@/integrations/supabase/client');
+        const { data, error } = await supabase
+          .from('categories')
+          .select('name')
+          .order('name');
+
+        if (error) throw error;
+        setCategories(data?.map(c => c.name) || []);
+      } catch (error) {
+        console.error('Error loading categories:', error);
+      }
+    };
+
+    loadCategories();
+  }, []);
 
   // Load from cache immediately on mount
   useEffect(() => {
@@ -77,42 +84,16 @@ export default function ComplaintsList() {
     return 'לא שויך'; // Default for new/unclaimed/uncompleted
   };
 
-  // Normalize category to one of the allowed categories
-  const normalizeCategory = (category: string): typeof CATEGORY_OPTIONS[number] => {
+  // Normalize category - just return as is or default to 'אחר'
+  const normalizeCategory = (category: string): string => {
     if (!category) return 'אחר';
     
-    const categoryMap: Record<string, typeof CATEGORY_OPTIONS[number]> = {
-      'טכני': 'מחשוב',
-      'ניקיון': 'תשתיות',
-      'בטיחות': 'ביטחון אישי',
-      'pedagogy': 'פדגוגיה',
-      'computing': 'מחשוב',
-      'commanders': 'יחס ממפקדים',
-      'teachers': 'יחס ממורים',
-      'infrastructure': 'תשתיות',
-      'security': 'ביטחון אישי',
-      'discipline': 'משמעת',
-      'dining': 'חדר אוכל',
-      'supplies': 'אפסנאות',
-      'resources': 'מרכז משאבים',
-      'registration': 'משרד רישום'
-    };
-
-    const lowerCategory = category.toLowerCase();
-    
-    // Check direct matches first
-    if (CATEGORY_OPTIONS.includes(category as any)) {
-      return category as typeof CATEGORY_OPTIONS[number];
+    // If category exists in our loaded categories, use it
+    if (categories.includes(category)) {
+      return category;
     }
     
-    // Check mapping
-    for (const [key, value] of Object.entries(categoryMap)) {
-      if (lowerCategory.includes(key)) {
-        return value;
-      }
-    }
-    
-    return 'אחר'; // Default for unrecognized categories
+    return category; // Keep original category even if not in list
   };
 
   // Load from cache first, then fetch if needed
@@ -477,7 +458,7 @@ export default function ComplaintsList() {
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="הכל">הכל</SelectItem>
-                  {CATEGORY_OPTIONS.map(category => (
+                  {categories.map(category => (
                     <SelectItem key={category} value={category}>
                       {category}
                     </SelectItem>
