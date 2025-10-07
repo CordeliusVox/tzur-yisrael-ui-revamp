@@ -25,6 +25,7 @@ const STATUS_OPTIONS = ['לא שויך', 'בטיפול', 'הושלם'] as const;
 export default function ComplaintsList() {
   const [complaints, setComplaints] = useState<ComplaintWithAge[]>([]);
   const [categories, setCategories] = useState<string[]>([]);
+  const [userAssignedCategories, setUserAssignedCategories] = useState<string[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [categoryFilter, setCategoryFilter] = useState('הכל');
   const [statusFilter, setStatusFilter] = useState('הכל');
@@ -57,6 +58,36 @@ export default function ComplaintsList() {
 
     loadCategories();
   }, []);
+
+  // Load user's assigned categories
+  useEffect(() => {
+    const loadUserCategories = async () => {
+      if (!user?.id) return;
+      
+      try {
+        const { supabase } = await import('@/integrations/supabase/client');
+        const { data, error } = await supabase
+          .from('user_categories')
+          .select('categories(name)')
+          .eq('user_id', user.id);
+
+        if (error) {
+          console.error('Error loading user categories:', error);
+          // If error or no categories, show all categories
+          setUserAssignedCategories([]);
+          return;
+        }
+
+        const assignedCats = data?.map((uc: any) => uc.categories?.name).filter(Boolean) || [];
+        setUserAssignedCategories(assignedCats);
+      } catch (error) {
+        console.error('Error loading user categories:', error);
+        setUserAssignedCategories([]);
+      }
+    };
+
+    loadUserCategories();
+  }, [user]);
 
   // Load from cache immediately on mount
   useEffect(() => {
@@ -316,11 +347,25 @@ export default function ComplaintsList() {
       const matchesSearch =
         complaint.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
         description.toLowerCase().includes(searchTerm.toLowerCase());
+      
+      // Filter by user's assigned categories if they have any
+      const matchesUserCategories = userAssignedCategories.length === 0 || 
+        userAssignedCategories.includes(complaint.category);
+      
       const matchesCategory = categoryFilter === "הכל" || complaint.category === categoryFilter;
       const matchesStatus = statusFilter === "הכל" || complaint.status === statusFilter;
-      return matchesSearch && matchesCategory && matchesStatus;
+      
+      return matchesSearch && matchesCategory && matchesStatus && matchesUserCategories;
     });
-  }, [complaints, searchTerm, categoryFilter, statusFilter]);
+  }, [complaints, searchTerm, categoryFilter, statusFilter, userAssignedCategories]);
+
+  // Get available categories for filter dropdown
+  const availableCategories = useMemo(() => {
+    if (userAssignedCategories.length === 0) {
+      return categories; // Show all if no restrictions
+    }
+    return categories.filter(cat => userAssignedCategories.includes(cat));
+  }, [categories, userAssignedCategories]);
 
   const totalPages = Math.ceil(filteredComplaints.length / complaintsPerPage);
   const paginatedComplaints = useMemo(() => {
@@ -458,7 +503,7 @@ export default function ComplaintsList() {
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="הכל">הכל</SelectItem>
-                  {categories.map(category => (
+                  {availableCategories.map(category => (
                     <SelectItem key={category} value={category}>
                       {category}
                     </SelectItem>

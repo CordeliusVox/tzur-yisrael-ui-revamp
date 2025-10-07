@@ -42,6 +42,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       return false;
     };
 
+    // Listen for fake login event first
+    const handleFakeLogin = () => {
+      checkFakeUser();
+    };
+
+    window.addEventListener('fake-login', handleFakeLogin);
+
     // Check on mount
     if (!checkFakeUser()) {
       // Set up auth state listener
@@ -60,16 +67,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         setLoading(false);
       });
 
-      return () => subscription.unsubscribe();
+      return () => {
+        subscription.unsubscribe();
+        window.removeEventListener('fake-login', handleFakeLogin);
+      };
     }
 
-    // Listen for fake login event
-    const handleFakeLogin = () => {
-      checkFakeUser();
+    return () => {
+      window.removeEventListener('fake-login', handleFakeLogin);
     };
-
-    window.addEventListener('fake-login', handleFakeLogin);
-    return () => window.removeEventListener('fake-login', handleFakeLogin);
   }, []);
 
   const signIn = async (email: string, password: string) => {

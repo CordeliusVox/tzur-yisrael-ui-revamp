@@ -144,16 +144,19 @@ export default function Auth() {
 
         sessionStorage.setItem('fake_user', JSON.stringify(fakeUser));
         
-        toast({
-          title: "התחברות מוצלחת",
-          description: `ברוך הבא, ${adminData.account.username}`
-        });
-        
-        // Trigger auth context update
+        // Trigger auth context update first
         window.dispatchEvent(new Event('fake-login'));
         
-        // Navigate to complaints page
-        navigate('/complaints');
+        // Small delay to ensure auth state is updated
+        setTimeout(() => {
+          toast({
+            title: "התחברות מוצלחת",
+            description: `ברוך הבא, ${adminData.account.username}`
+          });
+          
+          // Navigate to complaints page
+          navigate('/complaints');
+        }, 100);
       } else {
         toast({
           variant: "destructive",
