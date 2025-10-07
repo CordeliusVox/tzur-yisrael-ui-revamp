@@ -25,7 +25,7 @@ Deno.serve(async (req) => {
 
     const supabase = createClient(supabaseUrl, supabaseKey)
 
-    const { action, password, accountId, accountData } = await req.json()
+    const { action, password, accountId, accountData, categoryName, categoryId, userId } = await req.json()
 
     // Handle owner password verification
     if (action === 'verify_owner') {
@@ -141,6 +141,119 @@ Deno.serve(async (req) => {
         console.error('Error deleting account:', error)
         return new Response(
           JSON.stringify({ success: false, error: 'Failed to delete account' }),
+          { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 500 }
+        )
+      }
+
+      return new Response(
+        JSON.stringify({ success: true }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      )
+    }
+
+    // Add category (owner only)
+    if (action === 'add_category') {
+      if (password !== ownerPassword) {
+        return new Response(
+          JSON.stringify({ success: false, error: 'Unauthorized' }),
+          { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 401 }
+        )
+      }
+
+      const { data, error } = await supabase
+        .from('categories')
+        .insert({ name: categoryName })
+        .select()
+        .single()
+
+      if (error) {
+        console.error('Error adding category:', error)
+        return new Response(
+          JSON.stringify({ success: false, error: error.message }),
+          { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 500 }
+        )
+      }
+
+      return new Response(
+        JSON.stringify({ success: true, category: data }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      )
+    }
+
+    // Delete category (owner only)
+    if (action === 'delete_category') {
+      if (password !== ownerPassword) {
+        return new Response(
+          JSON.stringify({ success: false, error: 'Unauthorized' }),
+          { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 401 }
+        )
+      }
+
+      const { error } = await supabase
+        .from('categories')
+        .delete()
+        .eq('id', categoryId)
+
+      if (error) {
+        console.error('Error deleting category:', error)
+        return new Response(
+          JSON.stringify({ success: false, error: error.message }),
+          { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 500 }
+        )
+      }
+
+      return new Response(
+        JSON.stringify({ success: true }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      )
+    }
+
+    // Assign category to user (owner only)
+    if (action === 'assign_category') {
+      if (password !== ownerPassword) {
+        return new Response(
+          JSON.stringify({ success: false, error: 'Unauthorized' }),
+          { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 401 }
+        )
+      }
+
+      const { error } = await supabase
+        .from('user_categories')
+        .insert({ user_id: userId, category_id: categoryId })
+
+      if (error) {
+        console.error('Error assigning category:', error)
+        return new Response(
+          JSON.stringify({ success: false, error: error.message }),
+          { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 500 }
+        )
+      }
+
+      return new Response(
+        JSON.stringify({ success: true }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      )
+    }
+
+    // Unassign category from user (owner only)
+    if (action === 'unassign_category') {
+      if (password !== ownerPassword) {
+        return new Response(
+          JSON.stringify({ success: false, error: 'Unauthorized' }),
+          { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 401 }
+        )
+      }
+
+      const { error } = await supabase
+        .from('user_categories')
+        .delete()
+        .eq('user_id', userId)
+        .eq('category_id', categoryId)
+
+      if (error) {
+        console.error('Error unassigning category:', error)
+        return new Response(
+          JSON.stringify({ success: false, error: error.message }),
           { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 500 }
         )
       }

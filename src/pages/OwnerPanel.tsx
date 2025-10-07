@@ -244,101 +244,188 @@ export default function OwnerPanel() {
       return;
     }
 
+    const ownerPassword = sessionStorage.getItem('owner_password');
+    if (!ownerPassword) {
+      navigate('/');
+      return;
+    }
+
     try {
-      const { error } = await supabase
-        .from('categories')
-        .insert({ name: newCategoryName.trim() });
+      const response = await fetch(
+        'https://daxknkbmetzajmgdpniz.supabase.co/functions/v1/auth-verify',
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            action: 'add_category',
+            password: ownerPassword,
+            categoryName: newCategoryName.trim(),
+          }),
+        }
+      );
 
-      if (error) throw error;
-
-      toast({
-        title: 'הצלחה',
-        description: 'הקטגוריה נוספה בהצלחה',
-      });
-      setNewCategoryName('');
-      setIsAddCategoryDialogOpen(false);
-      loadCategories();
+      const data = await response.json();
+      if (data.success) {
+        toast({
+          title: 'הצלחה',
+          description: 'הקטגוריה נוספה בהצלחה',
+        });
+        setNewCategoryName('');
+        setIsAddCategoryDialogOpen(false);
+        loadCategories();
+      } else {
+        toast({
+          title: 'שגיאה',
+          description: data.error || 'לא הצלחנו להוסיף את הקטגוריה',
+          variant: 'destructive',
+        });
+      }
     } catch (error: any) {
       console.error('Error adding category:', error);
       toast({
         title: 'שגיאה',
-        description: error.message || 'לא הצלחנו להוסיף את הקטגוריה',
+        description: 'אירעה שגיאה בהוספת הקטגוריה',
         variant: 'destructive',
       });
     }
   };
 
   const handleDeleteCategory = async (categoryId: string) => {
+    const ownerPassword = sessionStorage.getItem('owner_password');
+    if (!ownerPassword) {
+      navigate('/');
+      return;
+    }
+
     try {
-      const { error } = await supabase
-        .from('categories')
-        .delete()
-        .eq('id', categoryId);
+      const response = await fetch(
+        'https://daxknkbmetzajmgdpniz.supabase.co/functions/v1/auth-verify',
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            action: 'delete_category',
+            password: ownerPassword,
+            categoryId,
+          }),
+        }
+      );
 
-      if (error) throw error;
-
-      toast({
-        title: 'הצלחה',
-        description: 'הקטגוריה נמחקה בהצלחה',
-      });
-      loadCategories();
-      loadUserCategories();
+      const data = await response.json();
+      if (data.success) {
+        toast({
+          title: 'הצלחה',
+          description: 'הקטגוריה נמחקה בהצלחה',
+        });
+        loadCategories();
+        loadUserCategories();
+      } else {
+        toast({
+          title: 'שגיאה',
+          description: data.error || 'לא הצלחנו למחוק את הקטגוריה',
+          variant: 'destructive',
+        });
+      }
     } catch (error: any) {
       console.error('Error deleting category:', error);
       toast({
         title: 'שגיאה',
-        description: error.message || 'לא הצלחנו למחוק את הקטגוריה',
+        description: 'אירעה שגיאה במחיקת הקטגוריה',
         variant: 'destructive',
       });
     }
   };
 
   const handleAssignCategory = async (userId: string, categoryId: string) => {
+    const ownerPassword = sessionStorage.getItem('owner_password');
+    if (!ownerPassword) {
+      navigate('/');
+      return;
+    }
+
     try {
-      const { error } = await supabase
-        .from('user_categories')
-        .insert({ user_id: userId, category_id: categoryId });
+      const response = await fetch(
+        'https://daxknkbmetzajmgdpniz.supabase.co/functions/v1/auth-verify',
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            action: 'assign_category',
+            password: ownerPassword,
+            userId,
+            categoryId,
+          }),
+        }
+      );
 
-      if (error) throw error;
-
-      toast({
-        title: 'הצלחה',
-        description: 'הקטגוריה שויכה למשתמש',
-      });
-      loadUserCategories();
+      const data = await response.json();
+      if (data.success) {
+        toast({
+          title: 'הצלחה',
+          description: 'הקטגוריה שויכה למשתמש',
+        });
+        loadUserCategories();
+      } else {
+        toast({
+          title: 'שגיאה',
+          description: data.error || 'לא הצלחנו לשייך את הקטגוריה',
+          variant: 'destructive',
+        });
+      }
     } catch (error: any) {
       console.error('Error assigning category:', error);
       toast({
         title: 'שגיאה',
-        description: error.message || 'לא הצלחנו לשייך את הקטגוריה',
+        description: 'אירעה שגיאה בשיוך הקטגוריה',
         variant: 'destructive',
       });
     }
   };
 
   const handleUnassignCategory = async (userId: string, categoryName: string) => {
+    const ownerPassword = sessionStorage.getItem('owner_password');
+    if (!ownerPassword) {
+      navigate('/');
+      return;
+    }
+
     try {
       const category = categories.find(c => c.name === categoryName);
       if (!category) return;
 
-      const { error } = await supabase
-        .from('user_categories')
-        .delete()
-        .eq('user_id', userId)
-        .eq('category_id', category.id);
+      const response = await fetch(
+        'https://daxknkbmetzajmgdpniz.supabase.co/functions/v1/auth-verify',
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            action: 'unassign_category',
+            password: ownerPassword,
+            userId,
+            categoryId: category.id,
+          }),
+        }
+      );
 
-      if (error) throw error;
-
-      toast({
-        title: 'הצלחה',
-        description: 'הקטגוריה הוסרה מהמשתמש',
-      });
-      loadUserCategories();
+      const data = await response.json();
+      if (data.success) {
+        toast({
+          title: 'הצלחה',
+          description: 'הקטגוריה הוסרה מהמשתמש',
+        });
+        loadUserCategories();
+      } else {
+        toast({
+          title: 'שגיאה',
+          description: data.error || 'לא הצלחנו להסיר את הקטגוריה',
+          variant: 'destructive',
+        });
+      }
     } catch (error: any) {
       console.error('Error unassigning category:', error);
       toast({
         title: 'שגיאה',
-        description: error.message || 'לא הצלחנו להסיר את הקטגוריה',
+        description: 'אירעה שגיאה בהסרת הקטגוריה',
         variant: 'destructive',
       });
     }
