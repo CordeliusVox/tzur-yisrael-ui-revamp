@@ -151,7 +151,9 @@ export default function Auth() {
         
         // Trigger auth context update
         window.dispatchEvent(new Event('fake-login'));
-        setPassword('');
+        
+        // Navigate to complaints page
+        navigate('/complaints');
       } else {
         toast({
           variant: "destructive",
