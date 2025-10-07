@@ -215,20 +215,36 @@ export default function OwnerPanel() {
   };
 
   const loadUserCategories = async () => {
+    const ownerPassword = sessionStorage.getItem('owner_password');
+    if (!ownerPassword) {
+      navigate('/');
+      return;
+    }
+
     try {
-      const { data, error } = await supabase
-        .from('user_categories')
-        .select('user_id, category_id, categories(id, name)');
+      const response = await fetch(
+        'https://daxknkbmetzajmgdpniz.supabase.co/functions/v1/auth-verify',
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            action: 'get_user_categories',
+            password: ownerPassword,
+          }),
+        }
+      );
 
-      if (error) throw error;
-
-      const grouped = (data || []).reduce((acc: Record<string, string[]>, item: any) => {
-        if (!acc[item.user_id]) acc[item.user_id] = [];
-        acc[item.user_id].push(item.categories.name);
-        return acc;
-      }, {});
-
-      setUserCategories(grouped);
+      const data = await response.json();
+      if (data.success) {
+        const grouped = (data.userCategories || []).reduce((acc: Record<string, string[]>, item: any) => {
+          if (!acc[item.user_id]) acc[item.user_id] = [];
+          acc[item.user_id].push(item.categories.name);
+          return acc;
+        }, {});
+        setUserCategories(grouped);
+      } else {
+        console.error('Error loading user categories:', data.error);
+      }
     } catch (error) {
       console.error('Error loading user categories:', error);
     }

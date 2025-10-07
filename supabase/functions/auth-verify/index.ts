@@ -27,6 +27,9 @@ Deno.serve(async (req) => {
 
     const { action, password, accountId, accountData, categoryName, categoryId, userId } = await req.json()
 
+    // Function to verify owner password
+    const verifyOwner = (pwd: string) => pwd === ownerPassword
+
     // Handle owner password verification
     if (action === 'verify_owner') {
       if (password === ownerPassword) {
@@ -87,6 +90,33 @@ Deno.serve(async (req) => {
 
       return new Response(
         JSON.stringify({ success: true, accounts: profiles || [] }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      )
+    }
+
+    // Get user categories (owner only)
+    if (action === 'get_user_categories') {
+      if (!verifyOwner(password)) {
+        return new Response(
+          JSON.stringify({ success: false, error: 'Unauthorized' }),
+          { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 401 }
+        )
+      }
+
+      const { data, error } = await supabase
+        .from('user_categories')
+        .select('user_id, category_id, categories(id, name)')
+
+      if (error) {
+        console.error('Error fetching user categories:', error)
+        return new Response(
+          JSON.stringify({ success: false, error: error.message }),
+          { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 500 }
+        )
+      }
+
+      return new Response(
+        JSON.stringify({ success: true, userCategories: data || [] }),
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       )
     }
@@ -153,7 +183,7 @@ Deno.serve(async (req) => {
 
     // Add category (owner only)
     if (action === 'add_category') {
-      if (password !== ownerPassword) {
+      if (!verifyOwner(password)) {
         return new Response(
           JSON.stringify({ success: false, error: 'Unauthorized' }),
           { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 401 }
@@ -182,7 +212,7 @@ Deno.serve(async (req) => {
 
     // Delete category (owner only)
     if (action === 'delete_category') {
-      if (password !== ownerPassword) {
+      if (!verifyOwner(password)) {
         return new Response(
           JSON.stringify({ success: false, error: 'Unauthorized' }),
           { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 401 }
@@ -210,7 +240,7 @@ Deno.serve(async (req) => {
 
     // Assign category to user (owner only)
     if (action === 'assign_category') {
-      if (password !== ownerPassword) {
+      if (!verifyOwner(password)) {
         return new Response(
           JSON.stringify({ success: false, error: 'Unauthorized' }),
           { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 401 }
@@ -237,7 +267,7 @@ Deno.serve(async (req) => {
 
     // Unassign category from user (owner only)
     if (action === 'unassign_category') {
-      if (password !== ownerPassword) {
+      if (!verifyOwner(password)) {
         return new Response(
           JSON.stringify({ success: false, error: 'Unauthorized' }),
           { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 401 }
