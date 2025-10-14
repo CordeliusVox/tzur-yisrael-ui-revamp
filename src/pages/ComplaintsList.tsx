@@ -8,7 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Pagination, PaginationContent, PaginationItem, PaginationLink, PaginationNext, PaginationPrevious } from '@/components/ui/pagination';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/hooks/useAuth';
-import { Settings, LogOut, Search, RefreshCw, Calendar, Tag } from 'lucide-react';
+import { Settings, LogOut, Search, User, RefreshCw, Calendar, Tag } from 'lucide-react';
 import { getComplaintAge, getComplaintCardClass, sortComplaintsByPriority, formatTimeAgo, type ComplaintWithAge } from '@/utils/complaintUtils';
 
 // Local storage keys
@@ -17,12 +17,18 @@ const CACHE_KEY = "complaints_cache";
 const CACHE_TIMESTAMP_KEY = "complaints_cache_timestamp";
 const CACHE_DURATION = 5 * 60 * 1000; // 5 minutes
 
+// Updated status options (only 3 statuses)
+const STATUS_OPTIONS = ['לא שויך', 'בטיפול', 'הושלם'] as const;
+
+// Categories will be loaded from database
+
 export default function ComplaintsList() {
   const [complaints, setComplaints] = useState<ComplaintWithAge[]>([]);
   const [categories, setCategories] = useState<string[]>([]);
   const [userAssignedCategories, setUserAssignedCategories] = useState<string[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [categoryFilter, setCategoryFilter] = useState('הכל');
+  const [statusFilter, setStatusFilter] = useState('הכל');
   const [currentPage, setCurrentPage] = useState(1);
   const [loading, setLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
@@ -57,7 +63,6 @@ export default function ComplaintsList() {
   useEffect(() => {
     const loadUserCategories = async () => {
       if (!user?.email) {
-        console.log('No user email, showing all categories');
         setUserAssignedCategories([]);
         return;
       }
@@ -66,18 +71,12 @@ export default function ComplaintsList() {
         const { supabase } = await import('@/integrations/supabase/client');
         
         // Get profile by email (since fake login doesn't set user_id)
-        const { data: profileData, error: profileError } = await supabase
+        const { data: profileData } = await supabase
           .from('profiles')
           .select('id')
           .eq('email', user.email)
           .maybeSingle();
         
-        if (profileError) {
-          console.error('Error fetching profile:', profileError);
-          setUserAssignedCategories([]);
-          return;
-        }
-
         if (!profileData) {
           console.log('No profile found for user email:', user.email);
           setUserAssignedCategories([]);
@@ -123,6 +122,18 @@ export default function ComplaintsList() {
     };
   }, [user]);
 
+  // Normalize status to one of the 3 allowed statuses
+  const normalizeStatus = (status: string): typeof STATUS_OPTIONS[number] => {
+    const lowerStatus = status.toLowerCase();
+    if (lowerStatus.includes('בטיפול') || lowerStatus.includes('פתוח') || lowerStatus.includes('claimed')) {
+      return 'בטיפול';
+    }
+    if (lowerStatus.includes('הושלם') || lowerStatus.includes('completed') || lowerStatus.includes('סגור')) {
+      return 'הושלם';
+    }
+    return 'לא שויך'; // Default for new/unclaimed/uncompleted
+  };
+
   // Normalize category - just return as is or default to 'אחר'
   const normalizeCategory = (category: string): string => {
     if (!category) return 'אחר';
@@ -164,11 +175,12 @@ export default function ComplaintsList() {
       if (cached) {
         const parsedData = JSON.parse(cached);
         return parsedData.map((complaint: any) => {
-          const { age, daysOld } = getComplaintAge(complaint.created_at);
+          const { age, daysOld } = getComplaintAge(complaint.created_at, complaint.status);
           return { 
             ...complaint, 
             age, 
             daysOld,
+            status: normalizeStatus(complaint.status),
             category: normalizeCategory(complaint.category)
           };
         });
@@ -279,11 +291,13 @@ export default function ComplaintsList() {
 
   const processComplaints = (complaintsData: any[]): ComplaintWithAge[] => {
     const complaintsWithAge = complaintsData.map((complaint: any) => {
+      const normalizedStatus = normalizeStatus(complaint.status);
       const normalizedCategory = normalizeCategory(complaint.category);
-      const { age, daysOld } = getComplaintAge(complaint.created_at);
+      const { age, daysOld } = getComplaintAge(complaint.created_at, normalizedStatus);
       
       return {
         ...complaint,
+        status: normalizedStatus,
         category: normalizedCategory,
         age,
         daysOld,
@@ -301,8 +315,10 @@ export default function ComplaintsList() {
       submitterEmail: complaint.email || "לא נמצא אימייל",
       submitterPhone: complaint.phone || "לא נמצא מספר טלפון",
       category: normalizeCategory(complaint.category),
+      status: normalizeStatus(complaint.status),
       date: complaint.created_at,
       description: complaint.details,
+      assignedTo: complaint.assigned_to,
       updates: [],
     }));
     localStorage.setItem(STORAGE_KEY, JSON.stringify(complaintsForStorage));
@@ -358,10 +374,11 @@ export default function ComplaintsList() {
         userAssignedCategories.includes(complaint.category);
       
       const matchesCategory = categoryFilter === "הכל" || complaint.category === categoryFilter;
+      const matchesStatus = statusFilter === "הכל" || complaint.status === statusFilter;
       
-      return matchesSearch && matchesCategory && matchesUserCategories;
+      return matchesSearch && matchesCategory && matchesStatus && matchesUserCategories;
     });
-  }, [complaints, searchTerm, categoryFilter, userAssignedCategories]);
+  }, [complaints, searchTerm, categoryFilter, statusFilter, userAssignedCategories]);
 
   // Get available categories for filter dropdown
   const availableCategories = useMemo(() => {
@@ -378,6 +395,60 @@ export default function ComplaintsList() {
       currentPage * complaintsPerPage
     );
   }, [filteredComplaints, currentPage, complaintsPerPage]);
+
+  const handleClaim = useCallback((id: string) => {
+    const updatedComplaints = complaints.map((complaint) => {
+      if (complaint.id === id && complaint.status === "לא שויך") {
+        return {
+          ...complaint,
+          assigned_to: user?.id,
+          status: "בטיפול" as const,
+        };
+      }
+      return complaint;
+    });
+
+    setComplaints(updatedComplaints);
+    
+    // Update cache
+    saveToCache(updatedComplaints);
+
+    toast({
+      title: "התלונה נתפסה",
+      description: "התלונה הוקצתה אליך בהצלחה",
+    });
+  }, [complaints, user, toast]);
+
+  const getStatusBadge = (status: string) => {
+    const statusConfig = {
+      "לא שויך": { variant: "secondary" as const, text: "לא שויך", color: "bg-red-100 text-red-800" },
+      "בטיפול": { variant: "default" as const, text: "בטיפול", color: "bg-yellow-100 text-yellow-800" },
+      "הושלם": { variant: "default" as const, text: "הושלם", color: "bg-green-100 text-green-800" },
+    };
+
+    const config = statusConfig[status as keyof typeof statusConfig] || statusConfig["לא שויך"];
+    return (
+      <Badge variant={config.variant} className={config.color}>
+        {config.text}
+      </Badge>
+    );
+  };
+
+  const getCategoryIcon = (category: string) => {
+    const iconMap: Record<string, JSX.Element> = {
+      'פדגוגיה': <User className="h-3 w-3" />,
+      'מחשוב': <Settings className="h-3 w-3" />,
+      'תשתיות': <Settings className="h-3 w-3" />,
+      'ביטחון אישי': <Settings className="h-3 w-3" />
+    };
+    
+    return iconMap[category] || <Tag className="h-3 w-3" />;
+  };
+
+  const getUserDisplay = (userId: string) => {
+    if (userId === user?.id) return "אתה";
+    return "משתמש אחר";
+  };
 
   const truncateText = (text: string, maxLength: number = 50): string => {
     if (!text) return "";
@@ -436,27 +507,40 @@ export default function ComplaintsList() {
         {/* Filters */}
         <Card className="card-elegant mb-6">
           <CardContent className="pt-6">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               <div className="relative">
                 <Search className="absolute right-3 top-1/2 transform -translate-y-1/2 text-muted-foreground h-4 w-4" />
                 <Input
-                  placeholder="חיפוש לפי כותרת או תיאור..."
+                  placeholder="חפש תלונות ..."
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
-                  className="pr-10 rounded-xl"
+                  className="pr-10 text-right"
                 />
               </div>
-              
+
               <Select value={categoryFilter} onValueChange={setCategoryFilter}>
-                <SelectTrigger className="rounded-xl">
-                  <Tag className="h-4 w-4 ml-2" />
-                  <SelectValue placeholder="כל הקטגוריות" />
+                <SelectTrigger>
+                  <SelectValue placeholder="בחר קטגוריה" />
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="הכל">הכל</SelectItem>
-                  {availableCategories.map((cat) => (
-                    <SelectItem key={cat} value={cat}>
-                      {cat}
+                  {availableCategories.map(category => (
+                    <SelectItem key={category} value={category}>
+                      {category}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+
+              <Select value={statusFilter} onValueChange={setStatusFilter}>
+                <SelectTrigger>
+                  <SelectValue placeholder="בחר סטטוס" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="הכל">הכל</SelectItem>
+                  {STATUS_OPTIONS.map(status => (
+                    <SelectItem key={status} value={status}>
+                      {status}
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -465,59 +549,87 @@ export default function ComplaintsList() {
           </CardContent>
         </Card>
 
-        {/* Results Count */}
-        <div className="mb-4 text-sm text-muted-foreground">
-          נמצאו {filteredComplaints.length} פניות
-          {userAssignedCategories.length > 0 && (
-            <span className="mr-2">
-              (מוצגות רק פניות מהקטגוריות שלך: {userAssignedCategories.join(', ')})
-            </span>
-          )}
-        </div>
-
         {/* Complaints List */}
-        <div className="space-y-4">
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
           {paginatedComplaints.length === 0 ? (
-            <Card className="card-elegant">
-              <CardContent className="text-center py-12">
-                <p className="text-muted-foreground hebrew-body">לא נמצאו פניות</p>
-              </CardContent>
-            </Card>
+            <div className="col-span-full">
+              <Card className="card-elegant">
+                <CardContent className="text-center py-12">
+                  <p className="text-muted-foreground hebrew-body">לא נמצאו תלונות</p>
+                </CardContent>
+              </Card>
+            </div>
           ) : (
             paginatedComplaints.map((complaint) => (
-              <Card 
+              <Card
                 key={complaint.id}
-                className={`card-elegant cursor-pointer hover:shadow-lg transition-all ${getComplaintCardClass(complaint.age)}`}
+                className={`card-elegant cursor-pointer transition-all hover:shadow-lg ${getComplaintCardClass(
+                  complaint.age
+                )}`}
                 onClick={() => navigate(`/complaint/${complaint.id}`)}
               >
-                <CardContent className="p-6">
+                <CardHeader className="pb-3">
                   <div className="flex items-start justify-between gap-4">
-                    <div className="flex-1 space-y-2">
-                      <div className="flex items-start gap-3">
-                        <h3 className="text-lg font-semibold hebrew-subtitle">{complaint.title}</h3>
-                        <Badge variant="outline" className="shrink-0">
-                          <Tag className="h-3 w-3 ml-1" />
-                          {complaint.category}
-                        </Badge>
-                      </div>
-                      
-                      <p className="text-sm text-muted-foreground hebrew-body">
-                        {truncateText((complaint as any).details || complaint.description, 100)}
-                      </p>
-                      
-                      <div className="flex items-center gap-4 text-xs text-muted-foreground">
-                        <div className="flex items-center gap-1">
-                          <Calendar className="h-3 w-3" />
-                          {formatTimeAgo(complaint.created_at)}
-                        </div>
-                        {complaint.age === 'critical' && (
-                          <Badge variant="destructive" className="text-xs">דחוף - {complaint.daysOld} ימים</Badge>
-                        )}
-                        {complaint.age === 'warning' && (
-                          <Badge variant="secondary" className="text-xs">{complaint.daysOld} ימים</Badge>
-                        )}
+                    <div className="flex-1 min-w-0">
+                      <CardTitle className="text-lg hebrew-subtitle line-clamp-2 mb-2">
+                        {complaint.title || "כותרת לא נמצאה"}
+                      </CardTitle>
+                      <div className="flex items-center gap-2 mb-2">
+                        <User className="h-4 w-4 text-muted-foreground" />
+                        <span className="text-sm text-muted-foreground">
+                          {(complaint as any).name || "מגיש לא ידוע"}
+                        </span>
                       </div>
                     </div>
+                    <div
+                      className="flex gap-2 flex-shrink-0"
+                      onClick={(e) => e.stopPropagation()}
+                    >
+                      {complaint.status === "לא שויך" && (
+                        <Button
+                          size="sm"
+                          onClick={() => handleClaim(complaint.id)}
+                          className="btn-secondary"
+                        >
+                          תפוס
+                        </Button>
+                      )}
+                    </div>
+                  </div>
+                  
+                  <div className="flex flex-wrap items-center gap-2">
+                    {getStatusBadge(complaint.status)}
+                    <Badge variant="outline" className="flex items-center gap-1">
+                      {getCategoryIcon(complaint.category)}
+                      {complaint.category}
+                    </Badge>
+                  </div>
+                </CardHeader>
+
+                <CardContent className="pt-0">
+                  <p className="text-muted-foreground mb-4 hebrew-body line-clamp-2">
+                    {truncateText(complaint.description || (complaint as any).details || "אין תיאור זמין", 100)}
+                  </p>
+
+                  <div className="space-y-2 text-sm text-muted-foreground">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-1">
+                        <Calendar className="h-4 w-4" />
+                        <span>{formatTimeAgo(complaint.created_at)}</span>
+                      </div>
+                      {complaint.assigned_to && (
+                        <span className="text-xs">
+                          מטופל על ידי: {getUserDisplay(complaint.assigned_to)}
+                        </span>
+                      )}
+                    </div>
+                    {complaint.daysOld !== undefined && (
+                      <div className="text-xs">
+                        <span className={complaint.daysOld > 7 ? "text-red-600 font-medium" : ""}>
+                          {complaint.daysOld} ימים מאז הגשה
+                        </span>
+                      </div>
+                    )}
                   </div>
                 </CardContent>
               </Card>
@@ -527,37 +639,52 @@ export default function ComplaintsList() {
 
         {/* Pagination */}
         {totalPages > 1 && (
-          <div className="mt-8">
-            <Pagination>
-              <PaginationContent>
+          <Pagination>
+            <PaginationContent>
+              {currentPage > 1 && (
                 <PaginationItem>
-                  <PaginationPrevious 
-                    onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
-                    className={currentPage === 1 ? 'pointer-events-none opacity-50' : 'cursor-pointer'}
+                  <PaginationPrevious
+                    onClick={() => setCurrentPage(currentPage - 1)}
+                    className="cursor-pointer"
                   />
                 </PaginationItem>
+              )}
+
+              {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
+                let pageNum;
+                if (totalPages <= 5) {
+                  pageNum = i + 1;
+                } else if (currentPage <= 3) {
+                  pageNum = i + 1;
+                } else if (currentPage >= totalPages - 2) {
+                  pageNum = totalPages - 4 + i;
+                } else {
+                  pageNum = currentPage - 2 + i;
+                }
                 
-                {Array.from({ length: totalPages }, (_, i) => i + 1).map((page) => (
-                  <PaginationItem key={page}>
+                return (
+                  <PaginationItem key={pageNum}>
                     <PaginationLink
-                      onClick={() => setCurrentPage(page)}
-                      isActive={currentPage === page}
+                      onClick={() => setCurrentPage(pageNum)}
+                      isActive={currentPage === pageNum}
                       className="cursor-pointer"
                     >
-                      {page}
+                      {pageNum}
                     </PaginationLink>
                   </PaginationItem>
-                ))}
-                
+                );
+              })}
+
+              {currentPage < totalPages && (
                 <PaginationItem>
                   <PaginationNext
-                    onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
-                    className={currentPage === totalPages ? 'pointer-events-none opacity-50' : 'cursor-pointer'}
+                    onClick={() => setCurrentPage(currentPage + 1)}
+                    className="cursor-pointer"
                   />
                 </PaginationItem>
-              </PaginationContent>
-            </Pagination>
-          </div>
+              )}
+            </PaginationContent>
+          </Pagination>
         )}
       </div>
     </div>
