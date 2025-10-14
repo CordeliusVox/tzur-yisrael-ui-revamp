@@ -62,7 +62,7 @@ export default function ComplaintsList() {
   // Load user's assigned categories
   useEffect(() => {
     const loadUserCategories = async () => {
-      if (!user?.id) {
+      if (!user?.email) {
         setUserAssignedCategories([]);
         return;
       }
@@ -70,18 +70,20 @@ export default function ComplaintsList() {
       try {
         const { supabase } = await import('@/integrations/supabase/client');
         
-        // First check if user has the ID from profiles table
+        // Get profile by email (since fake login doesn't set user_id)
         const { data: profileData } = await supabase
           .from('profiles')
           .select('id')
-          .eq('user_id', user.id)
-          .single();
+          .eq('email', user.email)
+          .maybeSingle();
         
         if (!profileData) {
-          console.log('No profile found for user, showing all categories');
+          console.log('No profile found for user email:', user.email);
           setUserAssignedCategories([]);
           return;
         }
+
+        console.log('Found profile ID:', profileData.id);
 
         const { data, error } = await supabase
           .from('user_categories')
@@ -359,15 +361,16 @@ export default function ComplaintsList() {
   }, [toast]);
 
   const filteredComplaints = useMemo(() => {
+    console.log('Filtering complaints. User categories:', userAssignedCategories);
     return complaints.filter((complaint) => {
       const description = complaint.description || (complaint as any).details || "";
       const matchesSearch =
         complaint.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
         description.toLowerCase().includes(searchTerm.toLowerCase());
       
-      // CRITICAL: Only show complaints from user's assigned categories
-      // If userAssignedCategories is empty, don't show ANY complaints (not all)
-      const matchesUserCategories = userAssignedCategories.length > 0 && 
+      // If user has assigned categories, only show those complaints
+      // If no categories assigned, show all (admin/staff case)
+      const matchesUserCategories = userAssignedCategories.length === 0 || 
         userAssignedCategories.includes(complaint.category);
       
       const matchesCategory = categoryFilter === "הכל" || complaint.category === categoryFilter;
