@@ -62,23 +62,40 @@ export default function ComplaintsList() {
   // Load user's assigned categories
   useEffect(() => {
     const loadUserCategories = async () => {
-      if (!user?.id) return;
+      if (!user?.id) {
+        setUserAssignedCategories([]);
+        return;
+      }
       
       try {
         const { supabase } = await import('@/integrations/supabase/client');
+        
+        // First check if user has the ID from profiles table
+        const { data: profileData } = await supabase
+          .from('profiles')
+          .select('id')
+          .eq('user_id', user.id)
+          .single();
+        
+        if (!profileData) {
+          console.log('No profile found for user, showing all categories');
+          setUserAssignedCategories([]);
+          return;
+        }
+
         const { data, error } = await supabase
           .from('user_categories')
           .select('categories(name)')
-          .eq('user_id', user.id);
+          .eq('user_id', profileData.id);
 
         if (error) {
           console.error('Error loading user categories:', error);
-          // If error or no categories, show all categories
           setUserAssignedCategories([]);
           return;
         }
 
         const assignedCats = data?.map((uc: any) => uc.categories?.name).filter(Boolean) || [];
+        console.log('User assigned categories:', assignedCats);
         setUserAssignedCategories(assignedCats);
       } catch (error) {
         console.error('Error loading user categories:', error);
@@ -348,8 +365,9 @@ export default function ComplaintsList() {
         complaint.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
         description.toLowerCase().includes(searchTerm.toLowerCase());
       
-      // Filter by user's assigned categories if they have any
-      const matchesUserCategories = userAssignedCategories.length === 0 || 
+      // CRITICAL: Only show complaints from user's assigned categories
+      // If userAssignedCategories is empty, don't show ANY complaints (not all)
+      const matchesUserCategories = userAssignedCategories.length > 0 && 
         userAssignedCategories.includes(complaint.category);
       
       const matchesCategory = categoryFilter === "הכל" || complaint.category === categoryFilter;
