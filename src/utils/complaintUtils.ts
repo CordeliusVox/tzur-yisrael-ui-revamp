@@ -1,4 +1,4 @@
-import { addDays, differenceInDays } from 'date-fns';
+import { differenceInDays } from 'date-fns';
 
 export type ComplaintAge = 'new' | 'warning' | 'critical';
 
@@ -7,7 +7,7 @@ export interface ComplaintWithAge {
   title: string;
   description: string;
   category: string;
-  status: string;
+  status?: string;
   submitter_id: string;
   assigned_to?: string;
   created_at: string;
@@ -16,15 +16,10 @@ export interface ComplaintWithAge {
   daysOld: number;
 }
 
-export function getComplaintAge(createdAt: string, status: string): { age: ComplaintAge; daysOld: number } {
+export function getComplaintAge(createdAt: string): { age: ComplaintAge; daysOld: number } {
   const now = new Date();
   const created = new Date(createdAt);
   const daysOld = differenceInDays(now, created);
-  
-  // If completed, treat as new regardless of age
-  if (status === 'הושלם') {
-    return { age: 'new', daysOld };
-  }
   
   if (daysOld >= 7) {
     return { age: 'critical', daysOld };
