@@ -75,6 +75,7 @@ export type Database = {
           submitter_id: string
           title: string
           updated_at: string
+          visible: boolean
         }
         Insert: {
           assigned_to?: string | null
@@ -86,6 +87,7 @@ export type Database = {
           submitter_id: string
           title: string
           updated_at?: string
+          visible?: boolean
         }
         Update: {
           assigned_to?: string | null
@@ -97,6 +99,7 @@ export type Database = {
           submitter_id?: string
           title?: string
           updated_at?: string
+          visible?: boolean
         }
         Relationships: []
       }

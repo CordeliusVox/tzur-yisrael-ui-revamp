@@ -9,16 +9,13 @@ import { Pagination, PaginationContent, PaginationItem, PaginationLink, Paginati
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/hooks/useAuth';
 import { Settings, LogOut, Search, User, RefreshCw, Calendar, Tag } from 'lucide-react';
-import { getComplaintAge, getComplaintCardClass, sortComplaintsByPriority, formatTimeAgo, type ComplaintWithAge } from '@/utils/complaintUtils';
+import { getComplaintAge, getComplaintCardClass, sortComplaintsByPriority, formatTimeAgo, type ComplaintWithAge, type ComplaintAge } from '@/utils/complaintUtils';
 
 // Local storage keys
 const STORAGE_KEY = "complaints_v1";
 const CACHE_KEY = "complaints_cache";
 const CACHE_TIMESTAMP_KEY = "complaints_cache_timestamp";
 const CACHE_DURATION = 5 * 60 * 1000; // 5 minutes
-
-// Updated status options (only 3 statuses)
-const STATUS_OPTIONS = ['לא שויך', 'בטיפול', 'הושלם'] as const;
 
 // Categories will be loaded from database
 
@@ -28,7 +25,6 @@ export default function ComplaintsList() {
   const [userAssignedCategories, setUserAssignedCategories] = useState<string[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [categoryFilter, setCategoryFilter] = useState('הכל');
-  const [statusFilter, setStatusFilter] = useState('הכל');
   const [currentPage, setCurrentPage] = useState(1);
   const [loading, setLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
@@ -177,18 +173,6 @@ export default function ComplaintsList() {
     };
   }, [user]);
 
-  // Normalize status to one of the 3 allowed statuses
-  const normalizeStatus = (status: string): typeof STATUS_OPTIONS[number] => {
-    const lowerStatus = status?.toLowerCase?.() || '';
-    if (lowerStatus.includes('בטיפול') || lowerStatus.includes('פתוח') || lowerStatus.includes('claimed')) {
-      return 'בטיפול';
-    }
-    if (lowerStatus.includes('הושלם') || lowerStatus.includes('completed') || lowerStatus.includes('סגור')) {
-      return 'הושלם';
-    }
-    return 'לא שויך'; // Default for new/unclaimed/uncompleted
-  };
-
   // Normalize category - trim/normalize and default to 'אחר'
   const normalizeCategory = (category: string): string => {
     const normalized = normalizeForCompare(category);
@@ -231,16 +215,17 @@ export default function ComplaintsList() {
       const cached = localStorage.getItem(CACHE_KEY);
       if (cached) {
         const parsedData = JSON.parse(cached);
-        return parsedData.map((complaint: any) => {
-          const { age, daysOld } = getComplaintAge(complaint.created_at, complaint.status);
-          return { 
-            ...complaint, 
-            age, 
-            daysOld,
-            status: normalizeStatus(complaint.status),
-            category: normalizeCategory(complaint.category)
-          };
-        });
+        return parsedData
+          .filter((complaint: any) => complaint.visible !== false)
+          .map((complaint: any) => {
+            const { age, daysOld } = getComplaintAge(complaint.created_at);
+            return { 
+              ...complaint, 
+              age, 
+              daysOld,
+              category: normalizeCategory(complaint.category)
+            };
+          });
       }
     } catch (error) {
       console.error("Error loading from cache:", error);
@@ -347,37 +332,38 @@ export default function ComplaintsList() {
   };
 
   const processComplaints = (complaintsData: any[]): ComplaintWithAge[] => {
-    const complaintsWithAge = complaintsData.map((complaint: any) => {
-      const normalizedStatus = normalizeStatus(complaint.status);
-      const normalizedCategory = normalizeCategory(complaint.category);
-      const { age, daysOld } = getComplaintAge(complaint.created_at, normalizedStatus);
-      
-      return {
-        ...complaint,
-        status: normalizedStatus,
-        category: normalizedCategory,
-        age,
-        daysOld,
-        submitter_id: complaint.submitter_id || "external",
-      };
-    });
+    const complaintsWithAge = complaintsData
+      .filter((complaint: any) => complaint.visible !== false)
+      .map((complaint: any) => {
+        const normalizedCategory = normalizeCategory(complaint.category);
+        const { age, daysOld } = getComplaintAge(complaint.created_at);
+        
+        return {
+          ...complaint,
+          category: normalizedCategory,
+          age,
+          daysOld,
+          submitter_id: complaint.submitter_id || "external",
+        };
+      });
     return sortComplaintsByPriority(complaintsWithAge);
   };
 
   const saveComplaintsForDetailPage = (complaintsData: any[]) => {
-    const complaintsForStorage = complaintsData.map((complaint: any) => ({
-      id: complaint.id,
-      title: complaint.title || "לא נמצא כותרת",
-      submitter: complaint.name || "לא ידוע",
-      submitterEmail: complaint.email || "לא נמצא אימייל",
-      submitterPhone: complaint.phone || "לא נמצא מספר טלפון",
-      category: normalizeCategory(complaint.category),
-      status: normalizeStatus(complaint.status),
-      date: complaint.created_at,
-      description: complaint.details,
-      assignedTo: complaint.assigned_to,
-      updates: [],
-    }));
+    const complaintsForStorage = complaintsData
+      .filter((complaint: any) => complaint.visible !== false)
+      .map((complaint: any) => ({
+        id: complaint.id,
+        title: complaint.title || "לא נמצא כותרת",
+        submitter: complaint.name || "לא ידוע",
+        submitterEmail: complaint.email || "לא נמצא אימייל",
+        submitterPhone: complaint.phone || "לא נמצא מספר טלפון",
+        category: normalizeCategory(complaint.category),
+        date: complaint.created_at,
+        description: complaint.details,
+        assignedTo: complaint.assigned_to,
+        visible: complaint.visible !== false,
+      }));
     localStorage.setItem(STORAGE_KEY, JSON.stringify(complaintsForStorage));
   };
 
@@ -434,11 +420,10 @@ export default function ComplaintsList() {
         userAssignedCategories.includes(complaintCatNorm);
       
       const matchesCategory = categoryFilter === "הכל" || complaint.category === categoryFilter;
-      const matchesStatus = statusFilter === "הכל" || complaint.status === statusFilter;
       
-      return matchesSearch && matchesCategory && matchesStatus && matchesUserCategories;
+      return matchesSearch && matchesCategory && matchesUserCategories;
     });
-  }, [complaints, searchTerm, categoryFilter, statusFilter, userAssignedCategories]);
+  }, [complaints, searchTerm, categoryFilter, userAssignedCategories]);
 
   // Get available categories for filter dropdown
   const availableCategories = useMemo(() => {
@@ -456,37 +441,14 @@ export default function ComplaintsList() {
     );
   }, [filteredComplaints, currentPage, complaintsPerPage]);
 
-  const handleClaim = useCallback((id: string) => {
-    const updatedComplaints = complaints.map((complaint) => {
-      if (complaint.id === id && complaint.status === "לא שויך") {
-        return {
-          ...complaint,
-          assigned_to: user?.id,
-          status: "בטיפול" as const,
-        };
-      }
-      return complaint;
-    });
-
-    setComplaints(updatedComplaints);
-    
-    // Update cache
-    saveToCache(updatedComplaints);
-
-    toast({
-      title: "התלונה נתפסה",
-      description: "התלונה הוקצתה אליך בהצלחה",
-    });
-  }, [complaints, user, toast]);
-
-  const getStatusBadge = (status: string) => {
-    const statusConfig = {
-      "לא שויך": { variant: "secondary" as const, text: "לא שויך", color: "bg-red-100 text-red-800" },
-      "בטיפול": { variant: "default" as const, text: "בטיפול", color: "bg-yellow-100 text-yellow-800" },
-      "הושלם": { variant: "default" as const, text: "הושלם", color: "bg-green-100 text-green-800" },
+  const getAgeBadge = (age: ComplaintAge) => {
+    const ageConfig = {
+      "new": { variant: "default" as const, text: "חדש", color: "bg-green-100 text-green-800" },
+      "warning": { variant: "default" as const, text: "דורש תשומת לב", color: "bg-yellow-100 text-yellow-800" },
+      "critical": { variant: "destructive" as const, text: "דחוף", color: "bg-red-100 text-red-800" },
     };
 
-    const config = statusConfig[status as keyof typeof statusConfig] || statusConfig["לא שויך"];
+    const config = ageConfig[age as keyof typeof ageConfig] || ageConfig["new"];
     return (
       <Badge variant={config.variant} className={config.color}>
         {config.text}
@@ -592,19 +554,6 @@ export default function ComplaintsList() {
                 </SelectContent>
               </Select>
 
-              <Select value={statusFilter} onValueChange={setStatusFilter}>
-                <SelectTrigger>
-                  <SelectValue placeholder="בחר סטטוס" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="הכל">הכל</SelectItem>
-                  {STATUS_OPTIONS.map(status => (
-                    <SelectItem key={status} value={status}>
-                      {status}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
             </div>
           </CardContent>
         </Card>
@@ -641,24 +590,10 @@ export default function ComplaintsList() {
                         </span>
                       </div>
                     </div>
-                    <div
-                      className="flex gap-2 flex-shrink-0"
-                      onClick={(e) => e.stopPropagation()}
-                    >
-                      {complaint.status === "לא שויך" && (
-                        <Button
-                          size="sm"
-                          onClick={() => handleClaim(complaint.id)}
-                          className="btn-secondary"
-                        >
-                          תפוס
-                        </Button>
-                      )}
-                    </div>
                   </div>
                   
                   <div className="flex flex-wrap items-center gap-2">
-                    {getStatusBadge(complaint.status)}
+                    {getAgeBadge(complaint.age)}
                     <Badge variant="outline" className="flex items-center gap-1">
                       {getCategoryIcon(complaint.category)}
                       {complaint.category}

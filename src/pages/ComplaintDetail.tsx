@@ -5,10 +5,8 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Separator } from "@/components/ui/separator";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
-import { Input } from "@/components/ui/input";
-import { Badge } from "@/components/ui/badge";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { toast } from "@/hooks/use-toast";
+import { supabase } from "@/integrations/supabase/client";
 import {
   ArrowRight,
   GraduationCap,
@@ -18,22 +16,11 @@ import {
   AlertTriangle,
   Send,
   Trash2,
-  UserPlus,
-  Clock,
-  CheckCircle2,
-  Download
+  Download,
+  Check
 } from "lucide-react";
 
 // Shared types
-type Status = "לא שויך" | "פתוח" | "בטיפול" | "הושלם";
-
-type Update = {
-  date: string;
-  time: string;
-  author: string;
-  message: string;
-};
-
 type Complaint = {
   id: string;
   title: string;
@@ -41,11 +28,10 @@ type Complaint = {
   submitterEmail?: string;
   submitterPhone?: string;
   category: string;
-  status: Status;
   date: string;
   description: string;
   assignedTo?: string | null;
-  updates: Update[];
+  visible: boolean;
 };
 
 const STORAGE_KEY = "complaints_v1";
@@ -59,8 +45,7 @@ const ComplaintDetail = () => {
   const [isDeleting, setIsDeleting] = useState(false);
   const [response, setResponse] = useState("");
   const [isSending, setIsSending] = useState(false);
-  const [newUpdate, setNewUpdate] = useState("");
-  const [newStatus, setNewStatus] = useState<Status | "ללא שינוי">("ללא שינוי");
+  const [isFinishing, setIsFinishing] = useState(false);
 
   // Load from storage
   useEffect(() => {
@@ -113,66 +98,43 @@ const ComplaintDetail = () => {
     }, 600);
   };
 
-  const handleClaim = () => {
-    const u = localStorage.getItem("username");
-    if (!u) {
-      toast({ title: "יש להתחבר", description: "אנא התחברו עם שם משתמש", variant: "destructive" });
-      navigate("/");
-      return;
-    }
-    if (complaint.status !== "לא שויך") return;
-    const now = new Date();
-    const updated: Complaint = {
-      ...complaint,
-      status: "בטיפול",
-      assignedTo: u,
-      updates: [
-        ...complaint.updates,
-        { date: now.toLocaleDateString('he-IL'), time: now.toLocaleTimeString('he-IL', { hour: '2-digit', minute: '2-digit' }), author: u, message: "הפנייה שויכה לטיפול" },
-      ],
-    };
-    saveComplaint(updated);
-    toast({ title: "שויך בהצלחה", description: "הפנייה שויכה אליך" });
-  };
+  const handleFinishComplaint = async () => {
+    setIsFinishing(true);
+    try {
+      // Update visibility in database
+      const { error } = await supabase
+        .from('complaints')
+        .update({ visible: false })
+        .eq('id', complaint.id);
 
-  const handleAddUpdate = () => {
-    const msg = newUpdate.trim();
-    if (!msg && newStatus === "ללא שינוי") {
-      toast({ title: "אין עדכון", description: "הוסיפו טקסט או בחרו סטטוס" });
-      return;
-    }
-    const u = localStorage.getItem("username") || "מערכת";
-    const now = new Date();
-    const statusToApply: Status = newStatus === "ללא שינוי" ? complaint.status : newStatus;
-    const updated: Complaint = {
-      ...complaint,
-      status: statusToApply,
-      assignedTo: complaint.assignedTo ?? u,
-      updates: [
-        ...complaint.updates,
-        ...(msg ? [{ date: now.toLocaleDateString('he-IL'), time: now.toLocaleTimeString('he-IL', { hour: '2-digit', minute: '2-digit' }), author: u, message: msg }] as Update[] : []),
-        ...(newStatus !== "ללא שינוי" ? [{ date: now.toLocaleDateString('he-IL'), time: now.toLocaleTimeString('he-IL', { hour: '2-digit', minute: '2-digit' }), author: u, message: `סטטוס עודכן ל- ${statusToApply}` }] as Update[] : []),
-      ],
-    };
-    saveComplaint(updated);
-    setNewUpdate("");
-    setNewStatus("ללא שינוי");
-    toast({ title: "עודכן", description: "הפנייה עודכנה בהצלחה" });
-  };
+      if (error) throw error;
 
-  const markCompleted = () => {
-    const u = localStorage.getItem("username") || "מערכת";
-    const now = new Date();
-    const updated: Complaint = {
-      ...complaint,
-      status: "הושלם",
-      updates: [
-        ...complaint.updates,
-        { date: now.toLocaleDateString('he-IL'), time: now.toLocaleTimeString('he-IL', { hour: '2-digit', minute: '2-digit' }), author: u, message: "הפנייה סומנה כהושלמה" },
-      ],
-    };
-    saveComplaint(updated);
-    toast({ title: "הושלם", description: "הפנייה הושלמה" });
+      // Update local storage
+      const updated: Complaint = {
+        ...complaint,
+        visible: false,
+      };
+      saveComplaint(updated);
+
+      toast({
+        title: "הפנייה הושלמה",
+        description: "הפנייה לא תוצג יותר ברשימה",
+      });
+
+      // Navigate back after short delay
+      setTimeout(() => {
+        navigate("/complaints");
+      }, 1000);
+    } catch (error) {
+      console.error("Error finishing complaint:", error);
+      toast({
+        title: "שגיאה",
+        description: "נכשל בסיום הפנייה",
+        variant: "destructive",
+      });
+    } finally {
+      setIsFinishing(false);
+    }
   };
 
   const handleDownloadComplaint = () => {
@@ -182,7 +144,6 @@ const ComplaintDetail = () => {
 
 כותרת: ${complaint.title}
 קטגוריה: ${complaint.category}
-סטטוס: ${complaint.status}
 תאריך הגשה: ${complaint.date}
 מגיש: ${complaint.submitter}
 ${complaint.submitterEmail ? `אימייל: ${complaint.submitterEmail}` : ''}
@@ -191,11 +152,6 @@ ${complaint.assignedTo ? `מטפל: ${complaint.assignedTo}` : ''}
 
 תיאור הפנייה:
 ${complaint.description}
-
-עדכונים והתקדמות:
-${complaint.updates.length === 0 ? 'אין עדכונים' : complaint.updates.map(update => 
-  `${update.date} ${update.time} - ${update.author}: ${update.message}`
-).join('\n')}
 
 דוח נוצר בתאריך: ${new Date().toLocaleDateString('he-IL')} ${new Date().toLocaleTimeString('he-IL')}
     `.trim();
@@ -214,21 +170,6 @@ ${complaint.updates.length === 0 ? 'אין עדכונים' : complaint.updates.m
       title: "הדוח הורד בהצלחה",
       description: "קובץ הדוח נשמר במחשב שלך"
     });
-  };
-
-  const getStatusBadge = (status: Status) => {
-    switch (status) {
-      case "לא שויך":
-        return <Badge variant="secondary">לא שויך</Badge>;
-      case "פתוח":
-        return <Badge className="bg-primary text-primary-foreground">פתוח</Badge>;
-      case "בטיפול":
-        return <Badge variant="outline" className="border-border text-foreground">בטיפול</Badge>;
-      case "הושלם":
-        return <Badge className="bg-green-600 text-white">הושלם</Badge>;
-      default:
-        return <Badge>פתוח</Badge>;
-    }
   };
 
   return (
@@ -282,12 +223,6 @@ ${complaint.updates.length === 0 ? 'אין עדכונים' : complaint.updates.m
                       </div>
                     </div>
                   </div>
-                  <div className="flex flex-col items-end gap-2">
-                    {getStatusBadge(complaint.status)}
-                    <div className="text-xs text-muted-foreground">
-                      מטפל/ת: <span className="font-medium">{complaint.assignedTo || "—"}</span>
-                    </div>
-                  </div>
                 </div>
               </CardHeader>
             </Card>
@@ -304,74 +239,6 @@ ${complaint.updates.length === 0 ? 'אין עדכונים' : complaint.updates.m
                 <p className="hebrew-body leading-relaxed text-foreground whitespace-pre-wrap">
                   {complaint.description}
                 </p>
-              </CardContent>
-            </Card>
-
-            {/* Status and updates timeline */}
-            <Card className="card-elegant">
-              <CardHeader>
-                <CardTitle className="hebrew-subtitle flex items-center gap-2">
-                  <Clock className="w-5 h-5" />
-                  סטטוס והתקדמות
-                </CardTitle>
-                <CardDescription>צפייה והוספת עדכונים עד לסיום הפנייה</CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-5">
-                {/* Timeline */}
-                <div className="space-y-4">
-                  {complaint.updates.length === 0 && (
-                    <p className="text-sm text-muted-foreground">אין עדכונים להצגה</p>
-                  )}
-                  <div className="space-y-3">
-                    {complaint.updates.map((u, idx) => (
-                      <div key={idx} className="flex items-start gap-3">
-                        <CheckCircle2 className="w-4 h-4 mt-1 text-muted-foreground" />
-                        <div>
-                          <div className="text-xs text-muted-foreground">
-                            {u.date} • {u.time} • {u.author}
-                          </div>
-                          <div className="text-sm">{u.message}</div>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-
-                <Separator />
-
-                {/* Add Update */}
-                <div className="space-y-3">
-                  <Label htmlFor="status">עדכון סטטוס</Label>
-                  <div className="grid grid-cols-1 md:grid-cols-4 gap-3 items-start">
-                    <Select value={newStatus} onValueChange={(v) => setNewStatus(v as any)}>
-                      <SelectTrigger id="status" className="rounded-xl" disabled={!complaint.assignedTo || complaint.status === "לא שויך"}>
-                        <SelectValue placeholder="בחר/י סטטוס" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="ללא שינוי">ללא שינוי</SelectItem>
-                        <SelectItem value="לא שויך">לא שויך</SelectItem>
-                        <SelectItem value="פתוח">פתוח</SelectItem>
-                        <SelectItem value="בטיפול">בטיפול</SelectItem>
-                        <SelectItem value="הושלם">הושלם</SelectItem>
-                      </SelectContent>
-                    </Select>
-                    <div className="md:col-span-2">
-                      <Input
-                        value={newUpdate}
-                        onChange={(e) => setNewUpdate(e.target.value)}
-                        placeholder="הוסיפו טקסט לעדכון (אופציונלי)"
-                        className="rounded-xl"
-                        disabled={!complaint.assignedTo || complaint.status === "לא שויך"}
-                      />
-                    </div>
-                    <div className="w-full">
-                      <Button onClick={handleAddUpdate} className="rounded-xl w-full h-10 md:h-full" disabled={!complaint.assignedTo || complaint.status === "לא שויך"}>הוסף/י עדכון</Button>
-                    </div>
-                  </div>
-                  {(!complaint.assignedTo || complaint.status === "לא שויך") && (
-                    <p className="text-xs text-muted-foreground">יש לשייך את הפנייה לפני עדכון סטטוס או הוספת הערות.</p>
-                  )}
-                </div>
               </CardContent>
             </Card>
 
@@ -424,7 +291,7 @@ ${complaint.updates.length === 0 ? 'אין עדכונים' : complaint.updates.m
                 </Button>
                 {complaint.submitterEmail && (
                   <p className="text-xs text-muted-foreground text-center" dir="ltr">
-                    התגובה תישלח לכתובת: {complaint.submitterEmail}
+                    {complaint.submitterEmail}
                   </p>
                 )}
               </CardContent>
@@ -433,35 +300,31 @@ ${complaint.updates.length === 0 ? 'אין עדכונים' : complaint.updates.m
 
           {/* Sidebar */}
           <div className="space-y-6">
-            {/* Quick Info */}
+            {/* Submitter Details */}
             <Card className="card-elegant">
               <CardHeader>
-                <CardTitle className="hebrew-subtitle">פרטי הפנייה</CardTitle>
+                <CardTitle className="hebrew-subtitle">פרטי המגיש</CardTitle>
               </CardHeader>
-              <CardContent className="space-y-4">
+              <CardContent className="space-y-3 text-sm">
                 <div>
-                  <label className="text-sm font-medium text-muted-foreground">קטגוריה</label>
-                  <p className="hebrew-body font-medium">{complaint.category}</p>
+                  <span className="text-muted-foreground">שם: </span>
+                  <span className="font-medium">{complaint.submitter}</span>
                 </div>
-
-                <Separator />
-
+                {complaint.submitterEmail && (
+                  <div>
+                    <span className="text-muted-foreground">אימייל: </span>
+                    <span className="font-medium">{complaint.submitterEmail}</span>
+                  </div>
+                )}
+                {complaint.submitterPhone && (
+                  <div>
+                    <span className="text-muted-foreground">טלפון: </span>
+                    <span className="font-medium">{complaint.submitterPhone}</span>
+                  </div>
+                )}
                 <div>
-                  <label className="text-sm font-medium text-muted-foreground">מגיש הפנייה</label>
-                  <p className="hebrew-body font-medium">{complaint.submitter}</p>
-                  {complaint.submitterEmail && (
-                    <p className="text-sm text-muted-foreground" dir="ltr">{complaint.submitterEmail}</p>
-                  )}
-                  {complaint.submitterPhone && (
-                    <p className="text-sm text-muted-foreground" dir="ltr">{complaint.submitterPhone}</p>
-                  )}
-                </div>
-
-                <Separator />
-
-                <div>
-                  <label className="text-sm font-medium text-muted-foreground">תאריך הגשה</label>
-                  <p className="hebrew-body font-medium">{complaint.date}</p>
+                  <span className="text-muted-foreground">קטגוריה: </span>
+                  <span className="font-medium">{complaint.category}</span>
                 </div>
               </CardContent>
             </Card>
@@ -471,39 +334,36 @@ ${complaint.updates.length === 0 ? 'אין עדכונים' : complaint.updates.m
               <CardHeader>
                 <CardTitle className="hebrew-subtitle">פעולות</CardTitle>
               </CardHeader>
-              <CardContent className="space-y-2">
-                {complaint.status === "לא שויך" && (
-                  <Button onClick={handleClaim} className="w-full rounded-xl" variant="secondary">
-                    <UserPlus className="w-4 h-4 ml-2" /> שיוך אליי
-                  </Button>
-                )}
-                <Button
-                  onClick={markCompleted}
-                  disabled={complaint.status === "הושלם"}
-                  className="w-full rounded-xl"
-                >
-                  סמן כהושלם
-                </Button>
+              <CardContent className="space-y-3">
                 <Button
                   onClick={handleDownloadComplaint}
                   variant="outline"
-                  className="w-full rounded-xl"
+                  className="w-full justify-start rounded-xl"
                 >
                   <Download className="w-4 h-4 ml-2" />
-                  הורד דוח
+                  הורד דוח מלא
                 </Button>
+
+                <Button
+                  onClick={handleFinishComplaint}
+                  disabled={isFinishing}
+                  className="w-full justify-start rounded-xl bg-green-600 hover:bg-green-700 text-white"
+                >
+                  <Check className="w-4 h-4 ml-2" />
+                  {isFinishing ? "מסיים..." : "סיים פנייה"}
+                </Button>
+
+                <Separator />
+
                 <Button
                   onClick={handleDeleteComplaint}
                   disabled={isDeleting}
                   variant="destructive"
-                  className="w-full hover:shadow-lg transition-all rounded-xl"
+                  className="w-full justify-start rounded-xl"
                 >
                   <Trash2 className="w-4 h-4 ml-2" />
-                  {isDeleting ? "מוחק פנייה..." : "מחק פנייה"}
+                  {isDeleting ? "מוחק..." : "מחק לצמיתות"}
                 </Button>
-                <p className="text-xs text-muted-foreground mt-2 text-center">
-                  מחיקה תסיר את הפנייה לצמיתות
-                </p>
               </CardContent>
             </Card>
           </div>

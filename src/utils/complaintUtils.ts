@@ -16,15 +16,10 @@ export interface ComplaintWithAge {
   daysOld: number;
 }
 
-export function getComplaintAge(createdAt: string, status: string): { age: ComplaintAge; daysOld: number } {
+export function getComplaintAge(createdAt: string): { age: ComplaintAge; daysOld: number } {
   const now = new Date();
   const created = new Date(createdAt);
   const daysOld = differenceInDays(now, created);
-  
-  // If completed, treat as new regardless of age
-  if (status === 'הושלם') {
-    return { age: 'new', daysOld };
-  }
   
   if (daysOld >= 7) {
     return { age: 'critical', daysOld };
