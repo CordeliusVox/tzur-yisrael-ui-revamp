@@ -1,4 +1,3 @@
-// COMPLETE FIX for ComplaintsList.tsx
 import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -21,6 +20,8 @@ const CACHE_DURATION = 5 * 60 * 1000; // 5 minutes
 // Updated status options (only 3 statuses)
 const STATUS_OPTIONS = ['לא שויך', 'בטיפול', 'הושלם'] as const;
 
+// Categories will be loaded from database
+
 export default function ComplaintsList() {
   const [complaints, setComplaints] = useState<ComplaintWithAge[]>([]);
   const [categories, setCategories] = useState<string[]>([]);
@@ -30,9 +31,8 @@ export default function ComplaintsList() {
   const [statusFilter, setStatusFilter] = useState('הכל');
   const [currentPage, setCurrentPage] = useState(1);
   const [loading, setLoading] = useState(true);
-  const [loadingUserCategories, setLoadingUserCategories] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
-
+  
   const complaintsPerPage = 25;
   const { user, signOut } = useAuth();
   const { toast } = useToast();
@@ -50,9 +50,7 @@ export default function ComplaintsList() {
           .order('name');
 
         if (error) throw error;
-        const categoryNames = data?.map(c => c.name) || [];
-        console.log('Loaded categories from DB:', categoryNames);
-        setCategories(categoryNames);
+        setCategories(data?.map(c => c.name) || []);
       } catch (error) {
         console.error('Error loading categories:', error);
       }
@@ -61,43 +59,32 @@ export default function ComplaintsList() {
     loadCategories();
   }, []);
 
-  // Load user's assigned categories - FIXED VERSION
+  // Load user's assigned categories
   useEffect(() => {
     const loadUserCategories = async () => {
       if (!user?.email) {
         setUserAssignedCategories([]);
-        setLoadingUserCategories(false);
         return;
       }
-
-      setLoadingUserCategories(true);
+      
       try {
         const { supabase } = await import('@/integrations/supabase/client');
-
-        // Get profile by email - use the profile ID (not user_id)
-        const { data: profileData, error: profileError } = await supabase
+        
+        // Get profile by email (since fake login doesn't set user_id)
+        const { data: profileData } = await supabase
           .from('profiles')
           .select('id')
           .eq('email', user.email)
           .maybeSingle();
-
-        if (profileError) {
-          console.error('Error fetching profile:', profileError);
-          setUserAssignedCategories([]);
-          setLoadingUserCategories(false);
-          return;
-        }
-
+        
         if (!profileData) {
           console.log('No profile found for user email:', user.email);
           setUserAssignedCategories([]);
-          setLoadingUserCategories(false);
           return;
         }
 
         console.log('Found profile ID:', profileData.id);
 
-        // Query user_categories using the profile ID
         const { data, error } = await supabase
           .from('user_categories')
           .select('categories(name)')
@@ -106,18 +93,15 @@ export default function ComplaintsList() {
         if (error) {
           console.error('Error loading user categories:', error);
           setUserAssignedCategories([]);
-          setLoadingUserCategories(false);
           return;
         }
 
         const assignedCats = data?.map((uc: any) => uc.categories?.name).filter(Boolean) || [];
-        console.log('✅ User assigned categories:', assignedCats);
+        console.log('User assigned categories:', assignedCats);
         setUserAssignedCategories(assignedCats);
       } catch (error) {
         console.error('Error loading user categories:', error);
         setUserAssignedCategories([]);
-      } finally {
-        setLoadingUserCategories(false);
       }
     };
 
@@ -129,7 +113,8 @@ export default function ComplaintsList() {
     if (user) {
       loadComplaintsWithCache();
     }
-
+    
+    // Cleanup on unmount
     return () => {
       if (abortControllerRef.current) {
         abortControllerRef.current.abort();
@@ -146,32 +131,42 @@ export default function ComplaintsList() {
     if (lowerStatus.includes('הושלם') || lowerStatus.includes('completed') || lowerStatus.includes('סגור')) {
       return 'הושלם';
     }
-    return 'לא שויך';
+    return 'לא שויך'; // Default for new/unclaimed/uncompleted
   };
 
-  // Normalize category with fuzzy matching
+  // Normalize category - just return as is or default to 'אחר'
   const normalizeCategory = (category: string): string => {
     if (!category) return 'אחר';
-
-    const normalized = category.trim();
-
-    // Exact match
-    if (categories.includes(normalized)) {
-      return normalized;
+    
+    // If category exists in our loaded categories, use it
+    if (categories.includes(category)) {
+      return category;
     }
+    
+    return category; // Keep original category even if not in list
+  };
 
-    // Fuzzy match (case-insensitive, whitespace-insensitive)
-    const match = categories.find(cat => 
-      cat.toLowerCase().replace(/\s+/g, '') === normalized.toLowerCase().replace(/\s+/g, '')
-    );
-
-    if (match) {
-      console.log(`Category fuzzy matched: "${normalized}" -> "${match}"`);
-      return match;
+  // Load from cache first, then fetch if needed
+  const loadComplaintsWithCache = async () => {
+    // Try to load from cache first
+    const cachedData = loadFromCache();
+    if (cachedData && cachedData.length > 0) {
+      setComplaints(cachedData);
+      setLoading(false);
+      
+      // Check if cache is expired and fetch in background
+      const cacheTimestamp = localStorage.getItem(CACHE_TIMESTAMP_KEY);
+      if (cacheTimestamp) {
+        const age = Date.now() - parseInt(cacheTimestamp, 10);
+        if (age > CACHE_DURATION) {
+          // Fetch fresh data in background without showing loading
+          fetchComplaintsInBackground();
+        }
+      }
+    } else {
+      // No cache, fetch fresh data
+      await loadComplaints();
     }
-
-    console.warn(`⚠️ Category not found in database: "${normalized}". Available:`, categories);
-    return normalized;
   };
 
   const loadFromCache = (): ComplaintWithAge[] | null => {
@@ -205,29 +200,11 @@ export default function ComplaintsList() {
     }
   };
 
-  const loadComplaintsWithCache = async () => {
-    const cachedData = loadFromCache();
-    if (cachedData && cachedData.length > 0) {
-      setComplaints(cachedData);
-      setLoading(false);
-
-      const cacheTimestamp = localStorage.getItem(CACHE_TIMESTAMP_KEY);
-      if (cacheTimestamp) {
-        const age = Date.now() - parseInt(cacheTimestamp, 10);
-        if (age > CACHE_DURATION) {
-          fetchComplaintsInBackground();
-        }
-      }
-    } else {
-      await loadComplaints();
-    }
-  };
-
   const fetchComplaintsInBackground = async () => {
     try {
       const controller = new AbortController();
       abortControllerRef.current = controller;
-
+      
       const response = await fetch(
         "https://daxknkbmetzajmgdpniz.supabase.co/functions/v1/sync-google-sheets",
         {
@@ -238,10 +215,13 @@ export default function ComplaintsList() {
       );
 
       if (!response.ok) throw new Error("Failed to fetch complaints");
-
+      
       const complaintsData = await response.json();
+      
+      // Process and update only if data changed
       const complaintsWithAge = processComplaints(complaintsData);
-
+      
+      // Check if data actually changed before updating state
       if (JSON.stringify(complaintsWithAge) !== JSON.stringify(complaints)) {
         setComplaints(complaintsWithAge);
         saveToCache(complaintsData);
@@ -259,9 +239,10 @@ export default function ComplaintsList() {
     try {
       const controller = new AbortController();
       abortControllerRef.current = controller;
-
+      
+      // Add timeout
       const timeoutId = setTimeout(() => controller.abort(), 10000);
-
+      
       const response = await fetch(
         "https://daxknkbmetzajmgdpniz.supabase.co/functions/v1/sync-google-sheets",
         {
@@ -270,18 +251,18 @@ export default function ComplaintsList() {
           signal: controller.signal,
         }
       );
-
+      
       clearTimeout(timeoutId);
 
       if (!response.ok) throw new Error("Failed to fetch complaints");
 
       const complaintsData = await response.json();
       const complaintsWithAge = processComplaints(complaintsData);
-
+      
       setComplaints(complaintsWithAge);
       saveToCache(complaintsData);
       saveComplaintsForDetailPage(complaintsData);
-
+      
     } catch (error: any) {
       if (error.name === 'AbortError') {
         toast({
@@ -297,7 +278,8 @@ export default function ComplaintsList() {
           variant: "destructive",
         });
       }
-
+      
+      // Try to load from cache as fallback
       const cachedData = loadFromCache();
       if (cachedData) {
         setComplaints(cachedData);
@@ -308,17 +290,11 @@ export default function ComplaintsList() {
   };
 
   const processComplaints = (complaintsData: any[]): ComplaintWithAge[] => {
-    console.log('Processing complaints with categories:', categories);
-    
     const complaintsWithAge = complaintsData.map((complaint: any) => {
       const normalizedStatus = normalizeStatus(complaint.status);
       const normalizedCategory = normalizeCategory(complaint.category);
       const { age, daysOld } = getComplaintAge(complaint.created_at, normalizedStatus);
-
-      if (complaint.category !== normalizedCategory) {
-        console.log(`📝 Category mapped: "${complaint.category}" -> "${normalizedCategory}"`);
-      }
-
+      
       return {
         ...complaint,
         status: normalizedStatus,
@@ -351,6 +327,7 @@ export default function ComplaintsList() {
   const handleRefresh = useCallback(async () => {
     setIsRefreshing(true);
     try {
+      // Force refresh from server
       const response = await fetch(
         "https://daxknkbmetzajmgdpniz.supabase.co/functions/v1/sync-google-sheets?refresh=true",
         {
@@ -358,14 +335,14 @@ export default function ComplaintsList() {
           headers: { "Content-Type": "application/json" },
         }
       );
-
+      
       if (response.ok) {
         const complaintsData = await response.json();
         const complaintsWithAge = processComplaints(complaintsData);
         setComplaints(complaintsWithAge);
         saveToCache(complaintsData);
         saveComplaintsForDetailPage(complaintsData);
-
+        
         toast({
           title: "עודכן בהצלחה",
           description: "הרשימה עודכנה מהשרת",
@@ -383,46 +360,25 @@ export default function ComplaintsList() {
     }
   }, [toast]);
 
-  // FIXED FILTERING LOGIC
   const filteredComplaints = useMemo(() => {
-    console.log('=== FILTERING DEBUG ===');
-    console.log('Total complaints:', complaints.length);
-    console.log('User assigned categories:', userAssignedCategories);
-    console.log('Loading user categories:', loadingUserCategories);
-    console.log('All available categories in DB:', categories);
-    
+    console.log('Filtering complaints. User categories:', userAssignedCategories);
     return complaints.filter((complaint) => {
       const description = complaint.description || (complaint as any).details || "";
       const matchesSearch =
         complaint.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
         description.toLowerCase().includes(searchTerm.toLowerCase());
-
-      // CRITICAL FIX: Handle category filtering properly
-      let matchesUserCategories = true;
       
-      if (loadingUserCategories) {
-        // Still loading, show nothing
-        return false;
-      } else if (userAssignedCategories.length > 0) {
-        // User has specific categories - only show those
-        matchesUserCategories = userAssignedCategories.includes(complaint.category);
-        
-        if (!matchesUserCategories) {
-          console.log(`❌ Filtered out: "${complaint.title}" - category "${complaint.category}" not in [${userAssignedCategories.join(', ')}]`);
-        }
-      } else {
-        // No categories assigned = admin/owner = show all
-        console.log('ℹ️ No categories assigned to user - showing all complaints (admin mode)');
-      }
-
+      // If user has assigned categories, only show those complaints
+      // If no categories assigned, show all (admin/staff case)
+      const matchesUserCategories = userAssignedCategories.length === 0 || 
+        userAssignedCategories.includes(complaint.category);
+      
       const matchesCategory = categoryFilter === "הכל" || complaint.category === categoryFilter;
       const matchesStatus = statusFilter === "הכל" || complaint.status === statusFilter;
-
-      const result = matchesSearch && matchesCategory && matchesStatus && matchesUserCategories;
       
-      return result;
+      return matchesSearch && matchesCategory && matchesStatus && matchesUserCategories;
     });
-  }, [complaints, searchTerm, categoryFilter, statusFilter, userAssignedCategories, loadingUserCategories, categories]);
+  }, [complaints, searchTerm, categoryFilter, statusFilter, userAssignedCategories]);
 
   // Get available categories for filter dropdown
   const availableCategories = useMemo(() => {
@@ -453,6 +409,8 @@ export default function ComplaintsList() {
     });
 
     setComplaints(updatedComplaints);
+    
+    // Update cache
     saveToCache(updatedComplaints);
 
     toast({
@@ -483,7 +441,7 @@ export default function ComplaintsList() {
       'תשתיות': <Settings className="h-3 w-3" />,
       'ביטחון אישי': <Settings className="h-3 w-3" />
     };
-
+    
     return iconMap[category] || <Tag className="h-3 w-3" />;
   };
 
@@ -497,24 +455,13 @@ export default function ComplaintsList() {
     return text.length > maxLength ? text.substring(0, maxLength) + "..." : text;
   };
 
-  // Loading states
+  // Show minimal loading UI only on initial load
   if (loading && complaints.length === 0) {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <div className="text-center">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto mb-4"></div>
           <div className="text-lg hebrew-body">טוען תלונות...</div>
-        </div>
-      </div>
-    );
-  }
-
-  if (loadingUserCategories) {
-    return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto mb-4"></div>
-          <div className="text-lg hebrew-body">טוען הרשאות משתמש...</div>
         </div>
       </div>
     );
@@ -529,11 +476,6 @@ export default function ComplaintsList() {
             <div className="flex items-center justify-between">
               <CardTitle className="text-3xl font-bold text-primary hebrew-title">
                 רשימת פניות
-                {userAssignedCategories.length > 0 && (
-                  <span className="text-sm font-normal text-muted-foreground mr-2">
-                    (מסננת לפי: {userAssignedCategories.join(', ')})
-                  </span>
-                )}
               </CardTitle>
               <div className="flex gap-2">
                 <Button
@@ -614,11 +556,6 @@ export default function ComplaintsList() {
               <Card className="card-elegant">
                 <CardContent className="text-center py-12">
                   <p className="text-muted-foreground hebrew-body">לא נמצאו תלונות</p>
-                  {userAssignedCategories.length > 0 && (
-                    <p className="text-sm text-muted-foreground mt-2">
-                      אתה משויך לקטגוריות: {userAssignedCategories.join(', ')}
-                    </p>
-                  )}
                 </CardContent>
               </Card>
             </div>
@@ -659,7 +596,7 @@ export default function ComplaintsList() {
                       )}
                     </div>
                   </div>
-
+                  
                   <div className="flex flex-wrap items-center gap-2">
                     {getStatusBadge(complaint.status)}
                     <Badge variant="outline" className="flex items-center gap-1">
@@ -724,7 +661,7 @@ export default function ComplaintsList() {
                 } else {
                   pageNum = currentPage - 2 + i;
                 }
-
+                
                 return (
                   <PaginationItem key={pageNum}>
                     <PaginationLink
