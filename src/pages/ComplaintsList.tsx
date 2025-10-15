@@ -56,7 +56,7 @@ export default function ComplaintsList() {
         const { supabase } = await import('@/integrations/supabase/client');
         const { data, error } = await supabase
           .from('categories')
-          .select('name')
+          .select('id, name')
           .order('name');
 
         if (error) throw error;
@@ -64,6 +64,7 @@ export default function ComplaintsList() {
         // Normalize category names when we store them locally
         const normalized = (data?.map((c: any) => normalizeForCompare(c.name)).filter(Boolean)) || [];
         setCategories(normalized);
+        console.log('Loaded categories (normalized):', normalized);
       } catch (error) {
         console.error('Error loading categories:', error);
       }
@@ -72,11 +73,12 @@ export default function ComplaintsList() {
     loadCategories();
   }, []);
 
-  // Load user's assigned categories
+  // Load user's assigned categories (defensive: try multiple strategies)
   useEffect(() => {
     const loadUserCategories = async () => {
       if (!user?.email) {
         setUserAssignedCategories([]);
+        console.log('No user.email, clearing assigned categories');
         return;
       }
       
@@ -84,12 +86,18 @@ export default function ComplaintsList() {
         const { supabase } = await import('@/integrations/supabase/client');
         
         // Get profile by email (since fake login doesn't set user_id)
-        const { data: profileData } = await supabase
+        const { data: profileData, error: profileError } = await supabase
           .from('profiles')
-          .select('id')
+          .select('id, assigned_categories') // also pull assigned_categories as fallback
           .eq('email', user.email)
           .maybeSingle();
-        
+
+        if (profileError) {
+          console.error('Error fetching profile:', profileError);
+          setUserAssignedCategories([]);
+          return;
+        }
+
         if (!profileData) {
           console.log('No profile found for user email:', user.email);
           setUserAssignedCategories([]);
@@ -98,27 +106,100 @@ export default function ComplaintsList() {
 
         console.log('Found profile ID:', profileData.id);
 
-        const { data, error } = await supabase
-          .from('user_categories')
-          .select('categories(name)')
-          .eq('user_id', profileData.id);
+        // Strategy A: relational select (expected common case)
+        try {
+          const { data: relData, error: relError } = await supabase
+            .from('user_categories')
+            .select('categories(id,name)')
+            .eq('user_id', profileData.id);
 
-        if (error) {
-          console.error('Error loading user categories:', error);
-          setUserAssignedCategories([]);
-          return;
+          if (relError) {
+            console.warn('Relational select returned error (will try fallback):', relError);
+          } else if (relData && relData.length > 0) {
+            const assignedCats = relData
+              .map((uc: any) => normalizeForCompare(uc?.categories?.name))
+              .filter(Boolean);
+            console.log('User assigned categories (from relational select):', assignedCats);
+            setUserAssignedCategories(assignedCats);
+            return;
+          } else {
+            console.log('Relational select returned empty, trying fallback queries...');
+          }
+        } catch (e) {
+          console.warn('Relational select threw, will try fallbacks', e);
         }
 
-        // Normalize assigned category names to same canonical form
-        const assignedCats = (data || [])
-          .map((uc: any) => {
-            const name = uc?.categories?.name;
-            return normalizeForCompare(name);
-          })
-          .filter(Boolean);
+        // Strategy B: fetch category ids from user_categories then query categories by id
+        try {
+          const { data: ucData, error: ucError } = await supabase
+            .from('user_categories')
+            .select('category_id')
+            .eq('user_id', profileData.id);
 
-        console.log('User assigned categories (normalized):', assignedCats);
-        setUserAssignedCategories(assignedCats);
+          if (ucError) {
+            console.warn('user_categories fetch error (fallback):', ucError);
+          } else if (ucData && ucData.length > 0) {
+            const ids = ucData.map((r: any) => r.category_id).filter(Boolean);
+            if (ids.length > 0) {
+              const { data: catData, error: catError } = await supabase
+                .from('categories')
+                .select('id, name')
+                .in('id', ids);
+
+              if (catError) {
+                console.warn('categories fetch by id error:', catError);
+              } else if (catData && catData.length > 0) {
+                const assignedCats = catData.map((c: any) => normalizeForCompare(c.name)).filter(Boolean);
+                console.log('User assigned categories (from ids fallback):', assignedCats);
+                setUserAssignedCategories(assignedCats);
+                return;
+              }
+            }
+          } else {
+            console.log('user_categories table returned no rows for this user_id');
+          }
+        } catch (e) {
+          console.warn('user_categories -> categories fallback threw:', e);
+        }
+
+        // Strategy C: fallback to profiles.assigned_categories field (CSV or JSON)
+        try {
+          const raw = profileData.assigned_categories;
+          if (raw) {
+            // If it's JSON array stored as text, try parse; otherwise split by comma
+            let arr: string[] = [];
+            if (typeof raw === 'string') {
+              try {
+                const parsed = JSON.parse(raw);
+                if (Array.isArray(parsed)) {
+                  arr = parsed.map((x: any) => String(x));
+                } else {
+                  // assume CSV
+                  arr = raw.split(',').map(s => s.trim()).filter(Boolean);
+                }
+              } catch {
+                arr = raw.split(',').map(s => s.trim()).filter(Boolean);
+              }
+            } else if (Array.isArray(raw)) {
+              arr = raw.map((x: any) => String(x));
+            }
+
+            const assignedCats = arr.map(normalizeForCompare).filter(Boolean);
+            if (assignedCats.length > 0) {
+              console.log('User assigned categories (from profiles.assigned_categories):', assignedCats);
+              setUserAssignedCategories(assignedCats);
+              return;
+            }
+          } else {
+            console.log('profiles.assigned_categories is empty or not present');
+          }
+        } catch (e) {
+          console.warn('profiles.assigned_categories parsing threw:', e);
+        }
+
+        // Nothing found
+        console.log('No user-assigned categories found for user; setting empty list');
+        setUserAssignedCategories([]);
       } catch (error) {
         console.error('Error loading user categories:', error);
         setUserAssignedCategories([]);
@@ -144,7 +225,7 @@ export default function ComplaintsList() {
 
   // Normalize status to one of the 3 allowed statuses
   const normalizeStatus = (status: string): typeof STATUS_OPTIONS[number] => {
-    const lowerStatus = status.toLowerCase();
+    const lowerStatus = status?.toLowerCase?.() || '';
     if (lowerStatus.includes('בטיפול') || lowerStatus.includes('פתוח') || lowerStatus.includes('claimed')) {
       return 'בטיפול';
     }
