@@ -73,7 +73,7 @@ export default function ComplaintsList() {
     loadCategories();
   }, []);
 
-  // Load user's assigned categories (defensive: try multiple strategies)
+  // Load user's assigned categories using user_categories.category_id -> categories.id -> categories.name
   useEffect(() => {
     const loadUserCategories = async () => {
       if (!user?.email) {
@@ -81,14 +81,14 @@ export default function ComplaintsList() {
         console.log('No user.email, clearing assigned categories');
         return;
       }
-      
+
       try {
         const { supabase } = await import('@/integrations/supabase/client');
-        
-        // Get profile by email (since fake login doesn't set user_id)
+
+        // Get profile ID only
         const { data: profileData, error: profileError } = await supabase
           .from('profiles')
-          .select('id, assigned_categories') // also pull assigned_categories as fallback
+          .select('id')
           .eq('email', user.email)
           .maybeSingle();
 
@@ -104,104 +104,58 @@ export default function ComplaintsList() {
           return;
         }
 
-        console.log('Found profile ID:', profileData.id);
+        const userId = profileData.id;
+        console.log('Found profile ID:', userId);
 
-        // Strategy A: relational select (expected common case)
-        try {
-          const { data: relData, error: relError } = await supabase
-            .from('user_categories')
-            .select('categories(id,name)')
-            .eq('user_id', profileData.id);
+        // Fetch category_id values from user_categories for this user
+        const { data: ucRows, error: ucError } = await supabase
+          .from('user_categories')
+          .select('category_id')
+          .eq('user_id', userId);
 
-          if (relError) {
-            console.warn('Relational select returned error (will try fallback):', relError);
-          } else if (relData && relData.length > 0) {
-            const assignedCats = relData
-              .map((uc: any) => normalizeForCompare(uc?.categories?.name))
-              .filter(Boolean);
-            console.log('User assigned categories (from relational select):', assignedCats);
-            setUserAssignedCategories(assignedCats);
-            return;
-          } else {
-            console.log('Relational select returned empty, trying fallback queries...');
-          }
-        } catch (e) {
-          console.warn('Relational select threw, will try fallbacks', e);
+        if (ucError) {
+          console.warn('Error fetching user_categories rows:', ucError);
         }
 
-        // Strategy B: fetch category ids from user_categories then query categories by id
-        try {
-          const { data: ucData, error: ucError } = await supabase
-            .from('user_categories')
-            .select('category_id')
-            .eq('user_id', profileData.id);
+        console.log('user_categories rows for this user (category_id):', ucRows);
 
-          if (ucError) {
-            console.warn('user_categories fetch error (fallback):', ucError);
-          } else if (ucData && ucData.length > 0) {
-            const ids = ucData.map((r: any) => r.category_id).filter(Boolean);
-            if (ids.length > 0) {
-              const { data: catData, error: catError } = await supabase
-                .from('categories')
-                .select('id, name')
-                .in('id', ids);
-
-              if (catError) {
-                console.warn('categories fetch by id error:', catError);
-              } else if (catData && catData.length > 0) {
-                const assignedCats = catData.map((c: any) => normalizeForCompare(c.name)).filter(Boolean);
-                console.log('User assigned categories (from ids fallback):', assignedCats);
-                setUserAssignedCategories(assignedCats);
-                return;
-              }
-            }
-          } else {
-            console.log('user_categories table returned no rows for this user_id');
-          }
-        } catch (e) {
-          console.warn('user_categories -> categories fallback threw:', e);
+        if (!Array.isArray(ucRows) || ucRows.length === 0) {
+          console.log('No user_categories rows found for this user.');
+          setUserAssignedCategories([]);
+          return;
         }
 
-        // Strategy C: fallback to profiles.assigned_categories field (CSV or JSON)
-        try {
-          const raw = profileData.assigned_categories;
-          if (raw) {
-            // If it's JSON array stored as text, try parse; otherwise split by comma
-            let arr: string[] = [];
-            if (typeof raw === 'string') {
-              try {
-                const parsed = JSON.parse(raw);
-                if (Array.isArray(parsed)) {
-                  arr = parsed.map((x: any) => String(x));
-                } else {
-                  // assume CSV
-                  arr = raw.split(',').map(s => s.trim()).filter(Boolean);
-                }
-              } catch {
-                arr = raw.split(',').map(s => s.trim()).filter(Boolean);
-              }
-            } else if (Array.isArray(raw)) {
-              arr = raw.map((x: any) => String(x));
-            }
-
-            const assignedCats = arr.map(normalizeForCompare).filter(Boolean);
-            if (assignedCats.length > 0) {
-              console.log('User assigned categories (from profiles.assigned_categories):', assignedCats);
-              setUserAssignedCategories(assignedCats);
-              return;
-            }
-          } else {
-            console.log('profiles.assigned_categories is empty or not present');
-          }
-        } catch (e) {
-          console.warn('profiles.assigned_categories parsing threw:', e);
+        // Collect distinct ids
+        const ids = Array.from(new Set(ucRows.map((r: any) => r.category_id).filter(Boolean)));
+        if (ids.length === 0) {
+          console.log('user_categories rows contained no category_id values.');
+          setUserAssignedCategories([]);
+          return;
         }
 
-        // Nothing found
-        console.log('No user-assigned categories found for user; setting empty list');
-        setUserAssignedCategories([]);
+        // Now fetch category names for those ids
+        const { data: catData, error: catError } = await supabase
+          .from('categories')
+          .select('id, name')
+          .in('id', ids);
+
+        if (catError) {
+          console.warn('Error fetching categories by id:', catError);
+          setUserAssignedCategories([]);
+          return;
+        }
+
+        if (!Array.isArray(catData) || catData.length === 0) {
+          console.log('No categories rows found for provided ids:', ids);
+          setUserAssignedCategories([]);
+          return;
+        }
+
+        const assignedCats = catData.map((c: any) => normalizeForCompare(c.name)).filter(Boolean);
+        console.log('User assigned categories (from category ids):', assignedCats);
+        setUserAssignedCategories(assignedCats);
       } catch (error) {
-        console.error('Error loading user categories:', error);
+        console.error('Error loading user categories (unexpected):', error);
         setUserAssignedCategories([]);
       }
     };
