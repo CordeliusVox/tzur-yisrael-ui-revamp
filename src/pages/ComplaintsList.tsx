@@ -20,6 +20,8 @@ const CACHE_DURATION = 5 * 60 * 1000; // 5 minutes
 // Updated status options (only 3 statuses)
 const STATUS_OPTIONS = ['לא שויך', 'בטיפול', 'הושלם'] as const;
 
+// Categories will be loaded from database
+
 export default function ComplaintsList() {
   const [complaints, setComplaints] = useState<ComplaintWithAge[]>([]);
   const [categories, setCategories] = useState<string[]>([]);
@@ -37,6 +39,16 @@ export default function ComplaintsList() {
   const navigate = useNavigate();
   const abortControllerRef = useRef<AbortController | null>(null);
 
+  // Helper: normalize strings for comparison (trim + unicode normalization)
+  const normalizeForCompare = (s?: string) => {
+    if (!s) return "";
+    try {
+      return s.toString().trim().normalize("NFC");
+    } catch {
+      return s.toString().trim();
+    }
+  };
+
   // Load categories from database
   useEffect(() => {
     const loadCategories = async () => {
@@ -48,7 +60,10 @@ export default function ComplaintsList() {
           .order('name');
 
         if (error) throw error;
-        setCategories(data?.map(c => c.name) || []);
+
+        // Normalize category names when we store them locally
+        const normalized = (data?.map((c: any) => normalizeForCompare(c.name)).filter(Boolean)) || [];
+        setCategories(normalized);
       } catch (error) {
         console.error('Error loading categories:', error);
       }
@@ -57,11 +72,10 @@ export default function ComplaintsList() {
     loadCategories();
   }, []);
 
-  // Load user's assigned categories - FIXED VERSION
+  // Load user's assigned categories
   useEffect(() => {
     const loadUserCategories = async () => {
       if (!user?.email) {
-        console.log('No user email found');
         setUserAssignedCategories([]);
         return;
       }
@@ -69,21 +83,13 @@ export default function ComplaintsList() {
       try {
         const { supabase } = await import('@/integrations/supabase/client');
         
-        console.log('Loading categories for user email:', user.email);
-        
-        // Get profile by email
-        const { data: profileData, error: profileError } = await supabase
+        // Get profile by email (since fake login doesn't set user_id)
+        const { data: profileData } = await supabase
           .from('profiles')
           .select('id')
           .eq('email', user.email)
-          .single();
+          .maybeSingle();
         
-        if (profileError) {
-          console.error('Error fetching profile:', profileError);
-          setUserAssignedCategories([]);
-          return;
-        }
-
         if (!profileData) {
           console.log('No profile found for user email:', user.email);
           setUserAssignedCategories([]);
@@ -92,36 +98,26 @@ export default function ComplaintsList() {
 
         console.log('Found profile ID:', profileData.id);
 
-        // Fetch user categories with proper join
-        const { data: categoriesData, error: categoriesError } = await supabase
+        const { data, error } = await supabase
           .from('user_categories')
-          .select(`
-            category_id,
-            categories!inner (
-              id,
-              name
-            )
-          `)
+          .select('categories(name)')
           .eq('user_id', profileData.id);
 
-        if (categoriesError) {
-          console.error('Error loading user categories:', categoriesError);
+        if (error) {
+          console.error('Error loading user categories:', error);
           setUserAssignedCategories([]);
           return;
         }
 
-        // Extract category names
-        const assignedCats = categoriesData
-          ?.map((uc: any) => uc.categories?.name)
-          .filter(Boolean) || [];
-        
-        console.log('User assigned categories:', assignedCats);
-        
-        // Important: Only set categories if we actually found some
-        if (assignedCats.length === 0) {
-          console.warn('User has no assigned categories - will see no complaints');
-        }
-        
+        // Normalize assigned category names to same canonical form
+        const assignedCats = (data || [])
+          .map((uc: any) => {
+            const name = uc?.categories?.name;
+            return normalizeForCompare(name);
+          })
+          .filter(Boolean);
+
+        console.log('User assigned categories (normalized):', assignedCats);
         setUserAssignedCategories(assignedCats);
       } catch (error) {
         console.error('Error loading user categories:', error);
@@ -138,6 +134,7 @@ export default function ComplaintsList() {
       loadComplaintsWithCache();
     }
     
+    // Cleanup on unmount
     return () => {
       if (abortControllerRef.current) {
         abortControllerRef.current.abort();
@@ -145,6 +142,7 @@ export default function ComplaintsList() {
     };
   }, [user]);
 
+  // Normalize status to one of the 3 allowed statuses
   const normalizeStatus = (status: string): typeof STATUS_OPTIONS[number] => {
     const lowerStatus = status.toLowerCase();
     if (lowerStatus.includes('בטיפול') || lowerStatus.includes('פתוח') || lowerStatus.includes('claimed')) {
@@ -153,31 +151,42 @@ export default function ComplaintsList() {
     if (lowerStatus.includes('הושלם') || lowerStatus.includes('completed') || lowerStatus.includes('סגור')) {
       return 'הושלם';
     }
-    return 'לא שויך';
+    return 'לא שויך'; // Default for new/unclaimed/uncompleted
   };
 
+  // Normalize category - trim/normalize and default to 'אחר'
   const normalizeCategory = (category: string): string => {
-    if (!category) return 'אחר';
-    if (categories.includes(category)) {
-      return category;
+    const normalized = normalizeForCompare(category);
+    if (!normalized) return 'אחר';
+    
+    // If category exists in our loaded canonical categories, return that canonical value
+    if (categories.includes(normalized)) {
+      return normalized;
     }
-    return category;
+    
+    // Otherwise return the normalized raw string so comparisons still work
+    return normalized;
   };
 
+  // Load from cache first, then fetch if needed
   const loadComplaintsWithCache = async () => {
+    // Try to load from cache first
     const cachedData = loadFromCache();
     if (cachedData && cachedData.length > 0) {
       setComplaints(cachedData);
       setLoading(false);
       
+      // Check if cache is expired and fetch in background
       const cacheTimestamp = localStorage.getItem(CACHE_TIMESTAMP_KEY);
       if (cacheTimestamp) {
         const age = Date.now() - parseInt(cacheTimestamp, 10);
         if (age > CACHE_DURATION) {
+          // Fetch fresh data in background without showing loading
           fetchComplaintsInBackground();
         }
       }
     } else {
+      // No cache, fetch fresh data
       await loadComplaints();
     }
   };
@@ -230,8 +239,11 @@ export default function ComplaintsList() {
       if (!response.ok) throw new Error("Failed to fetch complaints");
       
       const complaintsData = await response.json();
+      
+      // Process and update only if data changed
       const complaintsWithAge = processComplaints(complaintsData);
       
+      // Check if data actually changed before updating state
       if (JSON.stringify(complaintsWithAge) !== JSON.stringify(complaints)) {
         setComplaints(complaintsWithAge);
         saveToCache(complaintsData);
@@ -250,6 +262,7 @@ export default function ComplaintsList() {
       const controller = new AbortController();
       abortControllerRef.current = controller;
       
+      // Add timeout
       const timeoutId = setTimeout(() => controller.abort(), 10000);
       
       const response = await fetch(
@@ -288,6 +301,7 @@ export default function ComplaintsList() {
         });
       }
       
+      // Try to load from cache as fallback
       const cachedData = loadFromCache();
       if (cachedData) {
         setComplaints(cachedData);
@@ -335,6 +349,7 @@ export default function ComplaintsList() {
   const handleRefresh = useCallback(async () => {
     setIsRefreshing(true);
     try {
+      // Force refresh from server
       const response = await fetch(
         "https://daxknkbmetzajmgdpniz.supabase.co/functions/v1/sync-google-sheets?refresh=true",
         {
@@ -367,22 +382,21 @@ export default function ComplaintsList() {
     }
   }, [toast]);
 
-  // FIXED FILTERING LOGIC
   const filteredComplaints = useMemo(() => {
     console.log('Filtering complaints. User categories:', userAssignedCategories);
-    console.log('Total complaints:', complaints.length);
-    
     return complaints.filter((complaint) => {
       const description = complaint.description || (complaint as any).details || "";
       const matchesSearch =
         complaint.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
         description.toLowerCase().includes(searchTerm.toLowerCase());
       
-      // CRITICAL FIX: Only show complaints if user HAS categories AND complaint matches
-      const matchesUserCategories = userAssignedCategories.length > 0 && 
-        userAssignedCategories.includes(complaint.category);
-      
-      console.log(`Complaint ${complaint.id} - Category: ${complaint.category}, Matches: ${matchesUserCategories}`);
+      // Normalize complaint category for comparison (defensive)
+      const complaintCatNorm = normalizeForCompare(complaint.category);
+
+      // If user has assigned categories, only show those complaints
+      // If no categories assigned, show all (admin/staff case)
+      const matchesUserCategories = userAssignedCategories.length === 0 || 
+        userAssignedCategories.includes(complaintCatNorm);
       
       const matchesCategory = categoryFilter === "הכל" || complaint.category === categoryFilter;
       const matchesStatus = statusFilter === "הכל" || complaint.status === statusFilter;
@@ -391,10 +405,10 @@ export default function ComplaintsList() {
     });
   }, [complaints, searchTerm, categoryFilter, statusFilter, userAssignedCategories]);
 
-  // FIXED: Only show assigned categories in filter
+  // Get available categories for filter dropdown
   const availableCategories = useMemo(() => {
     if (userAssignedCategories.length === 0) {
-      return [];
+      return categories; // Show all if no restrictions
     }
     return categories.filter(cat => userAssignedCategories.includes(cat));
   }, [categories, userAssignedCategories]);
@@ -420,6 +434,8 @@ export default function ComplaintsList() {
     });
 
     setComplaints(updatedComplaints);
+    
+    // Update cache
     saveToCache(updatedComplaints);
 
     toast({
@@ -464,6 +480,7 @@ export default function ComplaintsList() {
     return text.length > maxLength ? text.substring(0, maxLength) + "..." : text;
   };
 
+  // Show minimal loading UI only on initial load
   if (loading && complaints.length === 0) {
     return (
       <div className="min-h-screen flex items-center justify-center">
@@ -478,6 +495,7 @@ export default function ComplaintsList() {
   return (
     <div className="min-h-screen bg-gradient-to-br from-background via-background to-muted p-4">
       <div className="max-w-7xl mx-auto">
+        {/* Header */}
         <Card className="card-elegant mb-6">
           <CardHeader>
             <div className="flex items-center justify-between">
@@ -511,6 +529,7 @@ export default function ComplaintsList() {
           </CardHeader>
         </Card>
 
+        {/* Filters */}
         <Card className="card-elegant mb-6">
           <CardContent className="pt-6">
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -555,17 +574,7 @@ export default function ComplaintsList() {
           </CardContent>
         </Card>
 
-        {/* Show message if no categories assigned */}
-        {userAssignedCategories.length === 0 && (
-          <Card className="card-elegant mb-6">
-            <CardContent className="py-8 text-center">
-              <p className="text-muted-foreground hebrew-body">
-                לא הוקצו לך קטגוריות. אנא פנה למנהל המערכת.
-              </p>
-            </CardContent>
-          </Card>
-        )}
-
+        {/* Complaints List */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
           {paginatedComplaints.length === 0 ? (
             <div className="col-span-full">
@@ -653,6 +662,7 @@ export default function ComplaintsList() {
           )}
         </div>
 
+        {/* Pagination */}
         {totalPages > 1 && (
           <Pagination>
             <PaginationContent>
