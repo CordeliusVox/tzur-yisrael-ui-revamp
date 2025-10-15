@@ -1,76 +1,16 @@
-import { useState, useEffect } from "react";
+import { useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
-import { useToast } from "@/hooks/use-toast";
-import { useAuth } from "@/hooks/useAuth";
 import { useTheme } from "next-themes";
-import { supabase } from "@/integrations/supabase/client";
 import { ArrowLeft, Settings as SettingsIcon, Moon, SunMedium } from "lucide-react";
 
 
 const Settings = () => {
   const navigate = useNavigate();
-  const { user, updateProfile } = useAuth();
   const { theme, setTheme } = useTheme();
-  const { toast } = useToast();
-  const [loading, setLoading] = useState(false);
-  const [profile, setProfile] = useState({
-    username: '',
-    email: ''
-  });
-
-  useEffect(() => {
-    if (user) {
-      fetchProfile();
-    }
-  }, [user]);
-
-  const fetchProfile = async () => {
-    try {
-      const { data, error } = await supabase
-        .from('profiles')
-        .select('username, email')
-        .eq('user_id', user?.id)
-        .single();
-
-      if (error) throw error;
-
-      setProfile({
-        username: data.username || '',
-        email: data.email || ''
-      });
-    } catch (error) {
-      console.error('Error fetching profile:', error);
-    }
-  };
-
-  const handleSave = async () => {
-    if (!user) return;
-
-    setLoading(true);
-    try {
-      const { error } = await updateProfile(profile.username);
-      
-      if (error) throw error;
-
-      toast({
-        title: "ההגדרות נשמרו",
-        description: "הפרופיל שלך עודכן בהצלחה"
-      });
-    } catch (error) {
-      toast({
-        variant: "destructive",
-        title: "שגיאה",
-        description: "לא ניתן לעדכן את הפרופיל"
-      });
-    } finally {
-      setLoading(false);
-    }
-  };
 
 
 // SEO: title, meta description, canonical
@@ -116,7 +56,7 @@ useEffect(() => {
               </div>
               <div>
                 <h1 className="hebrew-title text-primary">הגדרות</h1>
-                <p className="text-sm text-muted-foreground">ניהול פרופיל ומערכת</p>
+                <p className="text-sm text-muted-foreground">ניהול מערכת</p>
               </div>
             </div>
 
@@ -130,50 +70,6 @@ useEffect(() => {
 
       <main className="max-w-3xl mx-auto px-4 py-8">
         <div className="space-y-6">
-          {/* Profile Section */}
-          <Card className="card-elegant">
-            <CardHeader>
-              <CardTitle className="hebrew-subtitle">פרטי פרופיל</CardTitle>
-              <CardDescription className="hebrew-body">
-                עדכן את פרטי הפרופיל שלך
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="space-y-2">
-                <Label htmlFor="username" className="hebrew-body">שם משתמש</Label>
-                <Input
-                  id="username"
-                  value={profile.username}
-                  onChange={(e) => setProfile({ ...profile, username: e.target.value })}
-                  className="text-right"
-                  placeholder="הזן שם משתמש"
-                />
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="email" className="hebrew-body">כתובת אימייל</Label>
-                <Input
-                  id="email"
-                  type="email"
-                  value={profile.email}
-                  disabled
-                  className="text-right bg-muted"
-                />
-                <p className="text-sm text-muted-foreground">
-                  לא ניתן לשנות את כתובת האימייל
-                </p>
-              </div>
-
-              <Button 
-                onClick={handleSave} 
-                className="btn-school"
-                disabled={loading}
-              >
-                {loading ? 'שומר...' : 'שמור שינויים'}
-              </Button>
-            </CardContent>
-          </Card>
-
           {/* Theme Section */}
           <Card className="card-elegant">
             <CardHeader>

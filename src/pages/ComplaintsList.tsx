@@ -559,7 +559,7 @@ export default function ComplaintsList() {
         </Card>
 
         {/* Complaints List */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
           {paginatedComplaints.length === 0 ? (
             <div className="col-span-full">
               <Card className="card-elegant">
@@ -577,54 +577,29 @@ export default function ComplaintsList() {
                 )}`}
                 onClick={() => navigate(`/complaint/${complaint.id}`)}
               >
-                <CardHeader className="pb-3">
-                  <div className="flex items-start justify-between gap-4">
-                    <div className="flex-1 min-w-0">
-                      <CardTitle className="text-lg hebrew-subtitle line-clamp-2 mb-2">
-                        {complaint.title || "כותרת לא נמצאה"}
-                      </CardTitle>
-                      <div className="flex items-center gap-2 mb-2">
-                        <User className="h-4 w-4 text-muted-foreground" />
-                        <span className="text-sm text-muted-foreground">
-                          {(complaint as any).name || "מגיש לא ידוע"}
-                        </span>
-                      </div>
-                    </div>
+                <CardContent className="p-5">
+                  <div className="flex items-start justify-between mb-3">
+                    <h3 className="hebrew-subtitle text-foreground flex-1 line-clamp-1">
+                      {complaint.title || "כותרת לא נמצאה"}
+                    </h3>
+                    {getAgeBadge(complaint.age)}
                   </div>
                   
-                  <div className="flex flex-wrap items-center gap-2">
-                    {getAgeBadge(complaint.age)}
-                    <Badge variant="outline" className="flex items-center gap-1">
-                      {getCategoryIcon(complaint.category)}
-                      {complaint.category}
-                    </Badge>
-                  </div>
-                </CardHeader>
-
-                <CardContent className="pt-0">
-                  <p className="text-muted-foreground mb-4 hebrew-body line-clamp-2">
+                  <p className="hebrew-body text-muted-foreground mb-4 line-clamp-2 text-sm">
                     {truncateText(complaint.description || (complaint as any).details || "אין תיאור זמין", 100)}
                   </p>
-
-                  <div className="space-y-2 text-sm text-muted-foreground">
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-1">
-                        <Calendar className="h-4 w-4" />
-                        <span>{formatTimeAgo(complaint.created_at)}</span>
-                      </div>
-                      {complaint.assigned_to && (
-                        <span className="text-xs">
-                          מטופל על ידי: {getUserDisplay(complaint.assigned_to)}
-                        </span>
-                      )}
+                  
+                  <div className="flex items-center justify-between pt-3 border-t border-border">
+                    <div className="flex items-center gap-1.5 text-sm text-muted-foreground">
+                      <Tag className="w-3.5 h-3.5" />
+                      <span className="truncate">{complaint.category}</span>
                     </div>
-                    {complaint.daysOld !== undefined && (
-                      <div className="text-xs">
-                        <span className={complaint.daysOld > 7 ? "text-red-600 font-medium" : ""}>
-                          {complaint.daysOld} ימים מאז הגשה
-                        </span>
-                      </div>
-                    )}
+                    <div className="flex items-center gap-1.5 text-sm text-muted-foreground">
+                      <Calendar className="w-3.5 h-3.5" />
+                      <span>
+                        {new Date(complaint.created_at).toLocaleDateString('he-IL', { day: '2-digit', month: '2-digit' })}
+                      </span>
+                    </div>
                   </div>
                 </CardContent>
               </Card>
